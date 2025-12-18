@@ -36,7 +36,7 @@ export async function sendReportToWhatsApp(report: string): Promise<boolean> {
   let allSent = true;
 
   for (let i = 0; i < parts.length; i++) {
-    const header = `📊 Report (${i + 1}/${parts.length})\n\n`;
+    const header = `Report (${i + 1}/${parts.length})\n\n`;
     const sent = await notifyViaWhatsApp(header + parts[i]);
     if (!sent) allSent = false;
     await sleep(1000);

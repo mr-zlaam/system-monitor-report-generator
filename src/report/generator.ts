@@ -37,16 +37,16 @@ export function generateTextReport(report: FullReport): string {
   const lines: string[] = [];
 
   lines.push("═══════════════════════════════════════");
-  lines.push("       🖥️ SYSTEM MONITOR REPORT        ");
+  lines.push("       SYSTEM MONITOR REPORT           ");
   lines.push("═══════════════════════════════════════");
   lines.push("");
-  lines.push(`📅 ${report.generatedAt.toLocaleString()}`);
-  lines.push(`🏠 ${system.hostname} (${system.osInfo})`);
-  lines.push(`⏱️ Uptime: ${formatUptime(system.uptime)}`);
+  lines.push(`Date: ${report.generatedAt.toLocaleString()}`);
+  lines.push(`Host: ${system.hostname} (${system.osInfo})`);
+  lines.push(`Uptime: ${formatUptime(system.uptime)}`);
   lines.push("");
 
   lines.push("───────────────────────────────────────");
-  lines.push("            📊 SYSTEM STATS            ");
+  lines.push("            SYSTEM STATS               ");
   lines.push("───────────────────────────────────────");
   lines.push("");
 
@@ -54,18 +54,18 @@ export function generateTextReport(report: FullReport): string {
   const ramBar = generateProgressBar(system.memory.usagePercent, 20);
   const diskBar = generateProgressBar(system.disk.usagePercent, 20);
 
-  lines.push(`💻 CPU:  ${cpuBar} ${system.cpu.usage.toFixed(1)}%`);
+  lines.push(`CPU:  ${cpuBar} ${system.cpu.usage.toFixed(1)}%`);
   if (system.cpu.temperature) {
-    lines.push(`   Temp: ${system.cpu.temperature}°C`);
+    lines.push(`      Temp: ${system.cpu.temperature}°C`);
   }
-  lines.push(`🧠 RAM:  ${ramBar} ${system.memory.usagePercent.toFixed(1)}%`);
-  lines.push(`   ${system.memory.used}GB / ${system.memory.total}GB`);
-  lines.push(`💾 Disk: ${diskBar} ${system.disk.usagePercent.toFixed(1)}%`);
+  lines.push(`RAM:  ${ramBar} ${system.memory.usagePercent.toFixed(1)}%`);
+  lines.push(`      ${system.memory.used}GB / ${system.memory.total}GB`);
+  lines.push(`Disk: ${diskBar} ${system.disk.usagePercent.toFixed(1)}%`);
   lines.push(`   ${system.disk.used}GB / ${system.disk.total}GB`);
   lines.push("");
 
   lines.push("───────────────────────────────────────");
-  lines.push("           👥 ACTIVE SESSIONS          ");
+  lines.push("           ACTIVE SESSIONS             ");
   lines.push("───────────────────────────────────────");
   lines.push("");
 
@@ -81,10 +81,10 @@ export function generateTextReport(report: FullReport): string {
 
   if (failedLogins.length > 0) {
     lines.push("───────────────────────────────────────");
-    lines.push("        ⚠️ FAILED LOGIN ATTEMPTS       ");
+    lines.push("        FAILED LOGIN ATTEMPTS          ");
     lines.push("───────────────────────────────────────");
     lines.push("");
-    lines.push(`🚨 ${failedLogins.length} failed attempts in last 24h`);
+    lines.push(`${failedLogins.length} failed attempts in last 24h`);
     for (const login of failedLogins.slice(0, 5)) {
       lines.push(`• User: ${login.user} from ${login.host}`);
     }
@@ -93,17 +93,17 @@ export function generateTextReport(report: FullReport): string {
 
   if (activity.suspiciousActivity.length > 0) {
     lines.push("───────────────────────────────────────");
-    lines.push("         🚨 SUSPICIOUS ACTIVITY        ");
+    lines.push("         SUSPICIOUS ACTIVITY           ");
     lines.push("───────────────────────────────────────");
     lines.push("");
     for (const item of activity.suspiciousActivity) {
-      lines.push(`⚠️ ${item}`);
+      lines.push(`[!] ${item}`);
     }
     lines.push("");
   }
 
   lines.push("───────────────────────────────────────");
-  lines.push("          🔝 TOP PROCESSES (CPU)       ");
+  lines.push("          TOP PROCESSES (CPU)          ");
   lines.push("───────────────────────────────────────");
   lines.push("");
   for (const proc of system.processes.topCpu) {
@@ -113,7 +113,7 @@ export function generateTextReport(report: FullReport): string {
   lines.push("");
 
   lines.push("───────────────────────────────────────");
-  lines.push("        🌐 NETWORK CONNECTIONS         ");
+  lines.push("        NETWORK CONNECTIONS            ");
   lines.push("───────────────────────────────────────");
   lines.push("");
   lines.push(`Active connections: ${system.network.connections.length}`);
@@ -124,7 +124,7 @@ export function generateTextReport(report: FullReport): string {
 
   if (activity.usbDevices.length > 0) {
     lines.push("───────────────────────────────────────");
-    lines.push("           🔌 USB DEVICES              ");
+    lines.push("           USB DEVICES                 ");
     lines.push("───────────────────────────────────────");
     lines.push("");
     for (const device of activity.usbDevices) {
@@ -135,7 +135,7 @@ export function generateTextReport(report: FullReport): string {
 
   if (report.openWindows && report.openWindows.length > 0) {
     lines.push("───────────────────────────────────────");
-    lines.push("        🪟 OPEN WINDOWS                ");
+    lines.push("        OPEN WINDOWS                   ");
     lines.push("───────────────────────────────────────");
     lines.push("");
     for (const win of report.openWindows) {
@@ -146,7 +146,7 @@ export function generateTextReport(report: FullReport): string {
 
   if (report.runningPrograms && report.runningPrograms.length > 0) {
     lines.push("───────────────────────────────────────");
-    lines.push("        🚀 RUNNING PROGRAMS            ");
+    lines.push("        RUNNING PROGRAMS               ");
     lines.push("───────────────────────────────────────");
     lines.push("");
     for (const prog of report.runningPrograms.slice(0, 15)) {
@@ -161,39 +161,39 @@ export function generateTextReport(report: FullReport): string {
 
     if (thorium.length > 0) {
       lines.push("───────────────────────────────────────");
-      lines.push("        🌐 THORIUM HISTORY             ");
+      lines.push("        THORIUM HISTORY                ");
       lines.push("───────────────────────────────────────");
       lines.push("");
       for (const entry of thorium.slice(0, 10)) {
         lines.push(`• ${entry.title.substring(0, 50)}`);
         lines.push(`  ${entry.url.substring(0, 60)}`);
-        lines.push(`  🕒 ${entry.visitTime}`);
+        lines.push(`  Time: ${entry.visitTime}`);
       }
       lines.push("");
     }
 
     if (chrome.length > 0) {
       lines.push("───────────────────────────────────────");
-      lines.push("        🌐 CHROME HISTORY              ");
+      lines.push("        CHROME HISTORY                 ");
       lines.push("───────────────────────────────────────");
       lines.push("");
       for (const entry of chrome.slice(0, 10)) {
         lines.push(`• ${entry.title.substring(0, 50)}`);
         lines.push(`  ${entry.url.substring(0, 60)}`);
-        lines.push(`  🕒 ${entry.visitTime}`);
+        lines.push(`  Time: ${entry.visitTime}`);
       }
       lines.push("");
     }
 
     if (edge.length > 0) {
       lines.push("───────────────────────────────────────");
-      lines.push("        🌐 EDGE HISTORY                ");
+      lines.push("        EDGE HISTORY                   ");
       lines.push("───────────────────────────────────────");
       lines.push("");
       for (const entry of edge.slice(0, 10)) {
         lines.push(`• ${entry.title.substring(0, 50)}`);
         lines.push(`  ${entry.url.substring(0, 60)}`);
-        lines.push(`  🕒 ${entry.visitTime}`);
+        lines.push(`  Time: ${entry.visitTime}`);
       }
       lines.push("");
     }
@@ -215,7 +215,7 @@ export function generateQuickReport(
 ): string {
   const lines: string[] = [];
 
-  lines.push("🖥️ *Quick System Status*");
+  lines.push("*Quick System Status*");
   lines.push("");
   lines.push(`CPU: ${generateProgressBar(cpu, 10)} ${cpu}%`);
   lines.push(`RAM: ${generateProgressBar(ram, 10)} ${ram}%`);
@@ -224,7 +224,7 @@ export function generateQuickReport(
 
   if (suspicious.length > 0) {
     lines.push("");
-    lines.push("⚠️ *Alerts:*");
+    lines.push("*Alerts:*");
     for (const alert of suspicious) {
       lines.push(`• ${alert}`);
     }
@@ -240,19 +240,13 @@ export function generateAlertMessage(
   type: "login" | "suspicious" | "threshold",
   details: string
 ): string {
-  const icons = {
-    login: "🔐",
-    suspicious: "🚨",
-    threshold: "⚠️",
-  };
-
   const titles = {
-    login: "New Login Detected",
-    suspicious: "Suspicious Activity",
-    threshold: "Resource Alert",
+    login: "[LOGIN] New Login Detected",
+    suspicious: "[ALERT] Suspicious Activity",
+    threshold: "[WARN] Resource Alert",
   };
 
-  return `${icons[type]} *${titles[type]}*\n\n${details}\n\n_${new Date().toLocaleString()}_`;
+  return `*${titles[type]}*\n\n${details}\n\n_${new Date().toLocaleString()}_`;
 }
 
 function generateProgressBar(percent: number, width: number): string {

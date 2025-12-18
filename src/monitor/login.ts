@@ -191,27 +191,27 @@ export function watchScreenUnlock(callback: () => void): void {
     ]);
 
     let buffer = "";
-    screenUnlockWatcher?.stdout?.on("data", (data: Buffer) => {
-      buffer += data.toString();
-      if (buffer.includes("boolean false")) {
-        console.log("🔓 Screen unlocked detected via dbus");
-        callback();
-        buffer = "";
-      } else if (buffer.includes("boolean true")) {
-        console.log("🔒 Screen locked detected via dbus");
-        buffer = "";
-      }
-    });
+      screenUnlockWatcher?.stdout?.on("data", (data: Buffer) => {
+        buffer += data.toString();
+        if (buffer.includes("boolean false")) {
+          console.log("[UNLOCK] Screen unlocked detected via dbus");
+          callback();
+          buffer = "";
+        } else if (buffer.includes("boolean true")) {
+          console.log("[LOCK] Screen locked detected via dbus");
+          buffer = "";
+        }
+      });
 
-    screenUnlockWatcher?.stderr?.on("data", (data: Buffer) => {
-      console.error("dbus-monitor error:", data.toString());
-    });
+      screenUnlockWatcher?.stderr?.on("data", (data: Buffer) => {
+        console.error("dbus-monitor error:", data.toString());
+      });
 
-    screenUnlockWatcher?.on("error", (err: Error) => {
-      console.error("Failed to start dbus-monitor:", err.message);
-    });
+      screenUnlockWatcher?.on("error", (err: Error) => {
+        console.error("Failed to start dbus-monitor:", err.message);
+      });
 
-    console.log("👁️ Watching for screen unlock events...");
+      console.log("[WATCH] Watching for screen unlock events...");
   } catch (error) {
     console.error("Failed to watch screen unlock:", error);
   }

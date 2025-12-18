@@ -96,15 +96,15 @@ program
     const sessions = await getCurrentSessions();
     const suspicious = await checkSuspiciousActivity();
 
-    console.log("\n🖥️  System Status\n");
+    console.log("\nSystem Status\n");
     console.log(`CPU:      ${generateBar(stats.cpu)} ${stats.cpu}%`);
     console.log(`RAM:      ${generateBar(stats.ram)} ${stats.ram}%`);
     console.log(`Disk:     ${generateBar(stats.disk)} ${stats.disk}%`);
     console.log(`Sessions: ${sessions.length}`);
 
     if (suspicious.length > 0) {
-      console.log("\n⚠️  Alerts:");
-      suspicious.forEach((s) => console.log(`  • ${s}`));
+      console.log("\nAlerts:");
+      suspicious.forEach((s) => console.log(`  - ${s}`));
     }
     console.log("");
   });
@@ -113,12 +113,12 @@ program
   .command("whatsapp")
   .description("WhatsApp authentication")
   .action(async () => {
-    console.log("🔐 Initializing WhatsApp...\n");
+    console.log("Initializing WhatsApp...\n");
     try {
       await initWhatsApp();
       const status = await getWhatsAppStatus();
       if (status.connected) {
-        console.log(`\n✅ Connected as: ${status.phoneNumber}`);
+        console.log(`\n[OK] Connected as: ${status.phoneNumber}`);
       }
     } catch (error) {
       console.error("Failed to connect:", error);
@@ -138,12 +138,12 @@ program
   .action(async (options) => {
     let config = loadConfig();
 
-    if (options.reset) {
-      config = getDefaultConfig();
-      saveConfig(config);
-      console.log("✅ Configuration reset to defaults");
-      return;
-    }
+      if (options.reset) {
+        config = getDefaultConfig();
+        saveConfig(config);
+        console.log("[OK] Configuration reset to defaults");
+        return;
+      }
 
     if (options.phone) {
       config.whatsapp.phoneNumber = options.phone;
@@ -163,19 +163,19 @@ program
       config.monitoring.intervalMs = parseInt(options.interval);
     }
 
-    if (
-      options.phone ||
-      options.emailTo ||
-      options.emailUser ||
-      options.emailPass ||
-      options.interval
-    ) {
-      saveConfig(config);
-      console.log("✅ Configuration updated");
-    }
+      if (
+        options.phone ||
+        options.emailTo ||
+        options.emailUser ||
+        options.emailPass ||
+        options.interval
+      ) {
+        saveConfig(config);
+        console.log("[OK] Configuration updated");
+      }
 
-    if (options.show || Object.keys(options).length === 1) {
-      console.log("\n📋 Current Configuration:\n");
+      if (options.show || Object.keys(options).length === 1) {
+        console.log("\nCurrent Configuration:\n");
       console.log("WhatsApp:");
       console.log(`  Enabled: ${config.whatsapp.enabled}`);
       console.log(`  Phone: ${config.whatsapp.phoneNumber || "(not set)"}`);
@@ -202,12 +202,12 @@ program
   .option("-w, --whatsapp", "Test WhatsApp notification")
   .option("-e, --email", "Test email notification")
   .action(async (options) => {
-    const testMessage = "🧪 Test notification from System Monitor\n\nIf you received this, notifications are working!";
+    const testMessage = "[TEST] Test notification from System Monitor\n\nIf you received this, notifications are working!";
 
     if (options.whatsapp) {
       console.log("Testing WhatsApp...");
       const sent = await notifyViaWhatsApp(testMessage);
-      console.log(sent ? "✅ WhatsApp test sent!" : "❌ WhatsApp test failed");
+      console.log(sent ? "[OK] WhatsApp test sent!" : "[ERROR] WhatsApp test failed");
     }
 
     if (options.email) {
@@ -215,9 +215,9 @@ program
       const valid = await verifyEmailConfig();
       if (valid) {
         const sent = await sendReportEmail(testMessage);
-        console.log(sent ? "✅ Email test sent!" : "❌ Email test failed");
+        console.log(sent ? "[OK] Email test sent!" : "[ERROR] Email test failed");
       } else {
-        console.log("❌ Email configuration invalid");
+        console.log("[ERROR] Email configuration invalid");
       }
     }
 
@@ -239,13 +239,13 @@ async function runSetupWizard(): Promise<void> {
   console.log("║     System Monitor Setup Wizard        ║");
   console.log("[========================================]\n");
 
-  console.log("⚠️  Starting fresh setup (this will overwrite existing config and session)\n");
+  console.log("[WARN] Starting fresh setup (this will overwrite existing config and session)\n");
   
   const { clearSessionDir, getDefaultConfig } = await import("./config/settings.ts");
   clearSessionDir();
   const config = getDefaultConfig();
 
-  console.log("📱 WhatsApp Setup");
+  console.log("WhatsApp Setup");
   console.log("─────────────────");
   const setupWhatsApp = await question("Enable WhatsApp notifications? (y/n): ");
 
@@ -254,16 +254,16 @@ async function runSetupWizard(): Promise<void> {
     const phone = await question("Enter your phone number (with country code, e.g., 923001234567): ");
     config.whatsapp.phoneNumber = phone.trim();
 
-    console.log("\n🔐 Connecting to WhatsApp...");
+    console.log("\nConnecting to WhatsApp...");
     try {
       await initWhatsApp();
-      console.log("✅ WhatsApp connected!\n");
+      console.log("[OK] WhatsApp connected!\n");
     } catch (error) {
-      console.log("⚠️ WhatsApp setup failed. You can try again later with: monitor whatsapp\n");
+      console.log("[WARN] WhatsApp setup failed. You can try again later with: monitor whatsapp\n");
     }
   }
 
-  console.log("\n📧 Email Setup");
+  console.log("\nEmail Setup");
   console.log("─────────────────");
   const setupEmail = await question("Enable email notifications? (y/n): ");
 
@@ -281,7 +281,7 @@ async function runSetupWizard(): Promise<void> {
     }
   }
 
-  console.log("\n⏰ Monitoring Settings");
+  console.log("\nMonitoring Settings");
   console.log("─────────────────────────");
   const interval = await question(`Report interval in milliseconds (default ${config.monitoring.intervalMs}): `);
   if (interval) {
@@ -290,7 +290,7 @@ async function runSetupWizard(): Promise<void> {
 
   saveConfig(config);
 
-  console.log("\n✅ Setup complete!");
+  console.log("\n[OK] Setup complete!");
   console.log("\nTo start monitoring, run:");
   console.log("  bun run start");
   console.log("\nOr build a binary:");
@@ -329,12 +329,12 @@ async function sendNotifications(message: string): Promise<void> {
   const config = loadConfig();
 
   if (config.whatsapp.enabled && config.whatsapp.phoneNumber) {
-    console.log("📱 Sending to WhatsApp...");
+    console.log("Sending to WhatsApp...");
     await sendReportToWhatsApp(message);
   }
 
   if (config.email.enabled && config.email.to) {
-    console.log("📧 Sending email...");
+    console.log("Sending email...");
     await sendReportEmail(message);
   }
 }
@@ -345,9 +345,9 @@ async function startMonitoring(intervalMs: number): Promise<void> {
   console.log("║      System Monitor Started            ║");
   console.log("[========================================]\n");
 
-  console.log(`📊 Report interval: ${intervalMs} ms`);
-  console.log(`📱 WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);
-  console.log(`📧 Email: ${config.email.enabled ? "enabled" : "disabled"}`);
+  console.log(`Report interval: ${intervalMs} ms`);
+  console.log(`WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);
+  console.log(`Email: ${config.email.enabled ? "enabled" : "disabled"}`);
   console.log("\nPress Ctrl+C to stop\n");
 
   await initializeBaseline();
@@ -380,7 +380,7 @@ async function startMonitoring(intervalMs: number): Promise<void> {
           await sendReportToWhatsApp(text);
         } else if (cmdLower === "help") {
           await notifyViaWhatsApp(
-            "📋 Commands:\n• generate-report - Immediate full report\n• report - Full system report\n• status - Quick status\n• help - Show this message"
+            "Commands:\n- generate-report - Immediate full report\n- report - Full system report\n- status - Quick status\n- help - Show this message"
           );
         }
       });

@@ -39,13 +39,13 @@ export async function initWhatsApp(): Promise<Client> {
       });
 
     client.on("qr", (qr) => {
-      console.log("\n📱 Scan this QR code with WhatsApp:\n");
+      console.log("\nScan this QR code with WhatsApp:\n");
       qrcode.generate(qr, { small: true });
       console.log("\nWaiting for QR scan...\n");
     });
 
       client.on("ready", async () => {
-        console.log("✅ WhatsApp client is ready!");
+        console.log("[OK] WhatsApp client is ready!");
         isReady = true;
 
       const config = loadConfig();
@@ -56,17 +56,17 @@ export async function initWhatsApp(): Promise<Client> {
     });
 
     client.on("authenticated", () => {
-      console.log("✅ WhatsApp authenticated successfully!");
+      console.log("[OK] WhatsApp authenticated successfully!");
     });
 
     client.on("auth_failure", (msg) => {
-      console.error("❌ WhatsApp authentication failed:", msg);
+      console.error("[ERROR] WhatsApp authentication failed:", msg);
       isReady = false;
       reject(new Error(`Auth failed: ${msg}`));
     });
 
     client.on("disconnected", (reason) => {
-      console.log("⚠️ WhatsApp disconnected:", reason);
+      console.log("[WARN] WhatsApp disconnected:", reason);
       isReady = false;
     });
 

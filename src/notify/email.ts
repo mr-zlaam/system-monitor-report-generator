@@ -62,7 +62,7 @@ export async function notifyViaEmail(
   subject: string,
   message: string
 ): Promise<boolean> {
-  return await sendEmail(`🖥️ System Monitor: ${subject}`, message);
+  return await sendEmail(`System Monitor: ${subject}`, message);
 }
 
 export async function sendReportEmail(report: string): Promise<boolean> {
