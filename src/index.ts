@@ -228,11 +228,11 @@ async function runSetupWizard(): Promise<void> {
   const question = (q: string): Promise<string> =>
     new Promise((resolve) => rl.question(q, resolve));
 
-  console.log("\n╔════════════════════════════════════════╗");
+  console.log("\n[========================================]");
   console.log("║     System Monitor Setup Wizard        ║");
-  console.log("╚════════════════════════════════════════╝\n");
+  console.log("[========================================]\n");
 
-  const config = getDefaultConfig();
+  const config = loadConfig();
 
   console.log("📱 WhatsApp Setup");
   console.log("─────────────────");
@@ -324,9 +324,9 @@ async function sendNotifications(message: string): Promise<void> {
 
 async function startMonitoring(intervalMs: number): Promise<void> {
   const config = loadConfig();
-  console.log("\n╔════════════════════════════════════════╗");
+  console.log("\n[========================================]");
   console.log("║      System Monitor Started            ║");
-  console.log("╚════════════════════════════════════════╝\n");
+  console.log("[========================================]\n");
 
   console.log(`📊 Report interval: ${intervalMs} ms`);
   console.log(`📱 WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);

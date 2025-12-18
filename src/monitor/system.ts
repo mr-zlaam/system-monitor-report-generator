@@ -142,12 +142,12 @@ export async function getSystemStats(): Promise<SystemStats> {
       connections: netConnections
         .filter((c: si.Systeminformation.NetworkConnectionsData) => c.state === "ESTABLISHED")
         .slice(0, 20)
-        .map((c: si.Systeminformation.NetworkConnectionsData) => ({
+        .map((c: any) => ({
           protocol: c.protocol,
           localAddress: c.localAddress,
-          localPort: c.localPort,
+          localPort: typeof c.localPort === "string" ? parseInt(c.localPort) : c.localPort,
           peerAddress: c.peerAddress,
-          peerPort: c.peerPort,
+          peerPort: typeof c.peerPort === "string" ? parseInt(c.peerPort) : c.peerPort,
           state: c.state,
           process: c.process || "unknown",
         })),

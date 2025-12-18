@@ -27,16 +27,16 @@ export async function getCurrentSessions(): Promise<CurrentSession[]> {
     const { stdout } = await execAsync("who -u 2>/dev/null || who");
     const lines = stdout.trim().split("\n").filter(Boolean);
 
-    return lines.map((line) => {
-      const parts = line.split(/\s+/);
-      return {
-        user: parts[0] || "unknown",
-        terminal: parts[1] || "unknown",
-        loginTime: new Date(parts.slice(2, 4).join(" ")),
-        host: parts[4]?.replace(/[()]/g, "") || "local",
-        idle: parts[5] || "active",
-      };
-    });
+      return lines.map((line) => {
+        const parts = line.split(/\s+/);
+        return {
+          user: parts[0] || "unknown",
+          terminal: parts[1] || "unknown",
+          loginTime: new Date(parts.slice(2, 4).join(" ")),
+          host: parts[4]?.replace(/[()]/g, "") || "local",
+          idle: parts[5] || "active",
+        };
+      });
   } catch {
     return [];
   }
@@ -48,19 +48,19 @@ export async function getRecentLogins(count: number = 10): Promise<LoginEvent[]>
     const lines = stdout.trim().split("\n").filter(Boolean);
     const events: LoginEvent[] = [];
 
-    for (const line of lines) {
-      if (line.startsWith("wtmp") || line.startsWith("reboot")) continue;
-      if (line.includes("still logged in")) {
-        const parts = line.split(/\s+/);
-        events.push({
-          user: parts[0],
-          terminal: parts[1],
-          host: parts[2]?.includes(":") ? parts[2] : "local",
-          loginTime: new Date(),
-          type: "login",
-        });
+      for (const line of lines) {
+        if (line.startsWith("wtmp") || line.startsWith("reboot")) continue;
+        if (line.includes("still logged in")) {
+          const parts = line.split(/\s+/);
+          events.push({
+            user: parts[0] || "unknown",
+            terminal: parts[1] || "unknown",
+            host: parts[2]?.includes(":") ? parts[2] : "local",
+            loginTime: new Date(),
+            type: "login",
+          });
+        }
       }
-    }
 
     return events;
   } catch {
@@ -135,10 +135,10 @@ export async function getFailedLogins(hours: number = 24): Promise<LoginEvent[]>
 export async function getLastReboot(): Promise<Date | null> {
   try {
     const { stdout } = await execAsync("who -b");
-    const match = stdout.match(/system boot\s+(.+)/);
-    if (match) {
-      return new Date(match[1].trim());
-    }
+      const match = stdout.match(/system boot\s+(.+)/);
+      if (match && match[1]) {
+        return new Date(match[1].trim());
+      }
   } catch {
     // fallback
   }
@@ -155,20 +155,22 @@ export function watchLogins(callback: LoginCallback): void {
     lastSessionCount = sessions.length;
   });
 
-  loginWatcher = setInterval(async () => {
-    const sessions = await getCurrentSessions();
-    if (sessions.length > lastSessionCount) {
-      const newSession = sessions[sessions.length - 1];
-      callback({
-        user: newSession.user,
-        terminal: newSession.terminal,
-        host: newSession.host,
-        loginTime: newSession.loginTime,
-        type: "login",
-      });
-    }
-    lastSessionCount = sessions.length;
-  }, 10000);
+    loginWatcher = setInterval(async () => {
+      const sessions = await getCurrentSessions();
+      if (sessions.length > lastSessionCount) {
+        const newSession = sessions[sessions.length - 1];
+        if (newSession) {
+          callback({
+            user: newSession.user,
+            terminal: newSession.terminal,
+            host: newSession.host,
+            loginTime: newSession.loginTime,
+            type: "login",
+          });
+        }
+      }
+      lastSessionCount = sessions.length;
+    }, 10000);
 }
 
 export function stopWatchingLogins(): void {

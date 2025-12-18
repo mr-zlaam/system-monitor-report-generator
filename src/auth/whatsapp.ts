@@ -1,4 +1,4 @@
-import { Client, LocalAuth, Message } from "whatsapp-web.js";
+import { Client, LocalAuth, type Message } from "whatsapp-web.js";
 import qrcode from "qrcode-terminal";
 import { getSessionDir, loadConfig, saveConfig } from "../config/settings.ts";
 
@@ -54,31 +54,31 @@ export async function initWhatsApp(): Promise<Client> {
     client.on("ready", async () => {
       console.log("✅ WhatsApp client is ready!");
       
-        // Monkey-patch missing Store functions in recent WA Web versions
-        try {
-          await client!.pupPage?.evaluate(() => {
-            const patchStore = () => {
-              if (window.Store) {
-                if (window.Store.ContactMethods && !window.Store.ContactMethods.getIsMyContact) {
-                  window.Store.ContactMethods.getIsMyContact = (id: any) => {
-                    const me = window.Store.Contact.getMe();
-                    return id._serialized === (me.id ? me.id._serialized : me._serialized);
-                  };
+          // Monkey-patch missing Store functions in recent WA Web versions
+          try {
+            await client!.pupPage?.evaluate(() => {
+              const patchStore = () => {
+                if ((window as any).Store) {
+                  if ((window as any).Store.ContactMethods && !(window as any).Store.ContactMethods.getIsMyContact) {
+                    (window as any).Store.ContactMethods.getIsMyContact = (id: any) => {
+                      const me = (window as any).Store.Contact.getMe();
+                      return id._serialized === (me.id ? me.id._serialized : me._serialized);
+                    };
+                  }
                 }
-              }
-            };
-            patchStore();
-            // Also try to patch whenever Store might be re-initialized
-            const interval = setInterval(() => {
-              if (window.Store) {
-                patchStore();
-                clearInterval(interval);
-              }
-            }, 1000);
-          });
-        } catch (e) {
-          // Ignore patch errors
-        }
+              };
+              patchStore();
+              // Also try to patch whenever Store might be re-initialized
+              const interval = setInterval(() => {
+                if ((window as any).Store) {
+                  patchStore();
+                  clearInterval(interval);
+                }
+              }, 1000);
+            });
+          } catch (e) {
+            // Ignore patch errors
+          }
 
       isReady = true;
 
@@ -148,21 +148,21 @@ export async function sendWhatsAppMessage(
       let lastError: any;
       for (let i = 0; i < 3; i++) {
         try {
-          // Re-apply patch before each send attempt just in case
-          await client.pupPage?.evaluate(() => {
-            if (
-              window.Store &&
-              window.Store.ContactMethods &&
-              !window.Store.ContactMethods.getIsMyContact
-            ) {
-              window.Store.ContactMethods.getIsMyContact = (id: any) => {
-                const me = window.Store.Contact.getMe();
-                return (
-                  id._serialized === (me.id ? me.id._serialized : me._serialized)
-                );
-              };
-            }
-          });
+            // Re-apply patch before each send attempt just in case
+            await client.pupPage?.evaluate(() => {
+              if (
+                (window as any).Store &&
+                (window as any).Store.ContactMethods &&
+                !(window as any).Store.ContactMethods.getIsMyContact
+              ) {
+                (window as any).Store.ContactMethods.getIsMyContact = (id: any) => {
+                  const me = (window as any).Store.Contact.getMe();
+                  return (
+                    id._serialized === (me.id ? me.id._serialized : me._serialized)
+                  );
+                };
+              }
+            });
 
           await client.sendMessage(chatId, message);
           return true;
