@@ -24,11 +24,11 @@ export async function initWhatsApp(): Promise<Client> {
       authStrategy: new LocalAuth({
         dataPath: getSessionDir(),
       }),
-      webVersion: "2.3000.1015901391",
+      webVersion: "2.3000.1018915033",
       webVersionCache: {
         type: "remote",
         remotePath:
-          "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1015901391.html",
+          "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018915033.html",
       },
       puppeteer: {
         headless: true,
@@ -54,19 +54,31 @@ export async function initWhatsApp(): Promise<Client> {
     client.on("ready", async () => {
       console.log("✅ WhatsApp client is ready!");
       
-      // Monkey-patch missing getIsMyContact function in recent WA Web versions
-      try {
-        await client!.pupPage?.evaluate(() => {
-          if (window.Store && window.Store.ContactMethods && !window.Store.ContactMethods.getIsMyContact) {
-            window.Store.ContactMethods.getIsMyContact = (id: any) => {
-              const me = window.Store.Contact.getMe();
-              return id._serialized === me.id._serialized;
+        // Monkey-patch missing Store functions in recent WA Web versions
+        try {
+          await client!.pupPage?.evaluate(() => {
+            const patchStore = () => {
+              if (window.Store) {
+                if (window.Store.ContactMethods && !window.Store.ContactMethods.getIsMyContact) {
+                  window.Store.ContactMethods.getIsMyContact = (id: any) => {
+                    const me = window.Store.Contact.getMe();
+                    return id._serialized === (me.id ? me.id._serialized : me._serialized);
+                  };
+                }
+              }
             };
-          }
-        });
-      } catch (e) {
-        // Ignore patch errors, might not be needed or already exists
-      }
+            patchStore();
+            // Also try to patch whenever Store might be re-initialized
+            const interval = setInterval(() => {
+              if (window.Store) {
+                patchStore();
+                clearInterval(interval);
+              }
+            }, 1000);
+          });
+        } catch (e) {
+          // Ignore patch errors
+        }
 
       isReady = true;
 

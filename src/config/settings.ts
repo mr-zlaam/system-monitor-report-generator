@@ -18,11 +18,11 @@ export interface Config {
     };
     to: string;
   };
-  monitoring: {
-    intervalMinutes: number;
-    reportOnLogin: boolean;
-    reportOnSuspiciousActivity: boolean;
-  };
+    monitoring: {
+      intervalMs: number;
+      reportOnLogin: boolean;
+      reportOnSuspiciousActivity: boolean;
+    };
   alerts: {
     cpuThreshold: number;
     ramThreshold: number;
@@ -61,7 +61,7 @@ export function getDefaultConfig(): Config {
       to: "",
     },
     monitoring: {
-      intervalMinutes: 60,
+      intervalMs: 3600000,
       reportOnLogin: true,
       reportOnSuspiciousActivity: true,
     },

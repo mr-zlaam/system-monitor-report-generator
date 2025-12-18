@@ -52,7 +52,7 @@ program
 program
   .command("start")
   .description("Start monitoring daemon")
-  .option("-i, --interval <minutes>", "Report interval in minutes", "60")
+  .option("-i, --interval <ms>", "Report interval in milliseconds", "3600000")
   .action(async (options) => {
     await startMonitoring(parseInt(options.interval));
   });
@@ -153,7 +153,7 @@ program
       config.email.smtp.pass = options.emailPass;
     }
     if (options.interval) {
-      config.monitoring.intervalMinutes = parseInt(options.interval);
+      config.monitoring.intervalMs = parseInt(options.interval);
     }
 
     if (
@@ -178,7 +178,7 @@ program
       console.log(`  SMTP User: ${config.email.smtp.user || "(not set)"}`);
       console.log(`  SMTP Host: ${config.email.smtp.host}`);
       console.log("\nMonitoring:");
-      console.log(`  Interval: ${config.monitoring.intervalMinutes} minutes`);
+      console.log(`  Interval: ${config.monitoring.intervalMs} ms`);
       console.log(`  Report on login: ${config.monitoring.reportOnLogin}`);
       console.log(`  Report on suspicious: ${config.monitoring.reportOnSuspiciousActivity}`);
       console.log("\nAlerts Thresholds:");
@@ -272,9 +272,9 @@ async function runSetupWizard(): Promise<void> {
 
   console.log("\n⏰ Monitoring Settings");
   console.log("─────────────────────────");
-  const interval = await question(`Report interval in minutes (default ${config.monitoring.intervalMinutes}): `);
+  const interval = await question(`Report interval in milliseconds (default ${config.monitoring.intervalMs}): `);
   if (interval) {
-    config.monitoring.intervalMinutes = parseInt(interval);
+    config.monitoring.intervalMs = parseInt(interval);
   }
 
   saveConfig(config);
@@ -322,13 +322,13 @@ async function sendNotifications(message: string): Promise<void> {
   }
 }
 
-async function startMonitoring(intervalMinutes: number): Promise<void> {
+async function startMonitoring(intervalMs: number): Promise<void> {
   const config = loadConfig();
   console.log("\n╔════════════════════════════════════════╗");
   console.log("║      System Monitor Started            ║");
-  console.log("╚════════════════════════════════════════╝\n");
+  ╚════════════════════════════════════════╝\n");
 
-  console.log(`📊 Report interval: ${intervalMinutes} minutes`);
+  console.log(`📊 Report interval: ${intervalMs} ms`);
   console.log(`📱 WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);
   console.log(`📧 Email: ${config.email.enabled ? "enabled" : "disabled"}`);
   console.log("\nPress Ctrl+C to stop\n");
@@ -415,7 +415,7 @@ async function startMonitoring(intervalMinutes: number): Promise<void> {
 
   await sendScheduledReport();
 
-  setInterval(sendScheduledReport, intervalMinutes * 60 * 1000);
+  setInterval(sendScheduledReport, intervalMs);
 
   setInterval(checkAndReport, 5 * 60 * 1000);
 
