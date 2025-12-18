@@ -1,0 +1,621 @@
+#!/usr/bin/env bun
+import { Command } from "commander";
+import { createInterface } from "readline";
+import {
+  loadConfig,
+  saveConfig,
+  getDefaultConfig,
+  type Config,
+} from "./config/settings.ts";
+import { getSystemStats, getQuickStats } from "./monitor/system.ts";
+import {
+  getCurrentSessions,
+  getRecentLogins,
+  getFailedLogins,
+  watchLogins,
+  stopWatchingLogins,
+  watchScreenUnlock,
+  stopWatchingScreenUnlock,
+} from "./monitor/login.ts";
+import {
+  getActivitySummary,
+  initializeBaseline,
+  checkSuspiciousActivity,
+} from "./monitor/activity.ts";
+import {
+  getAllBrowserHistory,
+  getRunningPrograms,
+} from "./monitor/browser.ts";
+import { getOpenWindows } from "./monitor/windows.ts";
+import {
+  initWhatsApp,
+  onWhatsAppMessage,
+  destroyWhatsApp,
+  getWhatsAppStatus,
+} from "./auth/whatsapp.ts";
+import { sendReportToWhatsApp, notifyViaWhatsApp } from "./notify/whatsapp.ts";
+import { sendReportEmail, verifyEmailConfig } from "./notify/email.ts";
+import {
+  generateTextReport,
+  generateQuickReport,
+  generateAlertMessage,
+  type FullReport,
+} from "./report/generator.ts";
+
+const program = new Command();
+
+program
+  .name("system-monitor")
+  .description("Personal system monitoring tool with WhatsApp & Email notifications")
+  .version("1.0.0");
+
+program
+  .command("setup")
+  .description("Interactive setup wizard")
+  .action(async () => {
+    await runSetupWizard();
+  });
+
+program
+  .command("start")
+  .description("Start monitoring daemon")
+  .option("-i, --interval <ms>", "Report interval in milliseconds (overrides config)")
+  .action(async (options) => {
+    const config = loadConfig();
+    const interval = options.interval ? parseInt(options.interval) : config.monitoring.intervalMs;
+    await startMonitoring(interval);
+  });
+
+program
+  .command("report")
+  .description("Generate and send a report now")
+  .option("-q, --quick", "Send quick status instead of full report")
+  .option("--no-send", "Only display, don't send notifications")
+  .action(async (options) => {
+    const report = await generateReport();
+    const text = options.quick
+      ? generateQuickReport(
+          report.system.cpu.usage,
+          report.system.memory.usagePercent,
+          report.system.disk.usagePercent,
+          report.sessions.length,
+          report.activity.suspiciousActivity
+        )
+      : generateTextReport(report);
+
+    console.log(text);
+
+    if (options.send !== false) {
+      await sendNotifications(text);
+    }
+  });
+
+program
+  .command("status")
+  .description("Show current system status")
+  .action(async () => {
+    const stats = await getQuickStats();
+    const sessions = await getCurrentSessions();
+    const suspicious = await checkSuspiciousActivity();
+
+    console.log("\nSystem Status\n");
+    console.log(`CPU:      ${generateBar(stats.cpu)} ${stats.cpu}%`);
+    console.log(`RAM:      ${generateBar(stats.ram)} ${stats.ram}%`);
+    console.log(`Disk:     ${generateBar(stats.disk)} ${stats.disk}%`);
+    console.log(`Sessions: ${sessions.length}`);
+
+    if (suspicious.length > 0) {
+      console.log("\nAlerts:");
+      suspicious.forEach((s) => console.log(`  - ${s}`));
+    }
+    console.log("");
+  });
+
+program
+  .command("whatsapp")
+  .description("WhatsApp authentication")
+  .action(async () => {
+    console.log("Initializing WhatsApp...\n");
+    try {
+      await initWhatsApp();
+      const status = await getWhatsAppStatus();
+      if (status.connected) {
+        console.log(`\n[OK] Connected as: ${status.phoneNumber}`);
+      }
+    } catch (error) {
+      console.error("Failed to connect:", error);
+    }
+  });
+
+program
+  .command("config")
+  .description("View or update configuration")
+  .option("--show", "Show current configuration")
+  .option("--reset", "Reset to default configuration")
+  .option("--phone <number>", "Set WhatsApp phone number")
+  .option("--email-to <email>", "Set notification email address")
+  .option("--email-user <email>", "Set SMTP username")
+  .option("--email-pass <password>", "Set SMTP password")
+  .option("--interval <minutes>", "Set report interval")
+  .action(async (options) => {
+    let config = loadConfig();
+
+      if (options.reset) {
+        config = getDefaultConfig();
+        saveConfig(config);
+        console.log("[OK] Configuration reset to defaults");
+        return;
+      }
+
+    if (options.phone) {
+      config.whatsapp.phoneNumber = options.phone;
+      config.whatsapp.enabled = true;
+    }
+    if (options.emailTo) {
+      config.email.to = options.emailTo;
+      config.email.enabled = true;
+    }
+    if (options.emailUser) {
+      config.email.smtp.user = options.emailUser;
+    }
+    if (options.emailPass) {
+      config.email.smtp.pass = options.emailPass;
+    }
+    if (options.interval) {
+      config.monitoring.intervalMs = parseInt(options.interval);
+    }
+
+      if (
+        options.phone ||
+        options.emailTo ||
+        options.emailUser ||
+        options.emailPass ||
+        options.interval
+      ) {
+        saveConfig(config);
+        console.log("[OK] Configuration updated");
+      }
+
+      if (options.show || Object.keys(options).length === 1) {
+        console.log("\nCurrent Configuration:\n");
+      console.log("WhatsApp:");
+      console.log(`  Enabled: ${config.whatsapp.enabled}`);
+      console.log(`  Phone: ${config.whatsapp.phoneNumber || "(not set)"}`);
+      console.log("\nEmail:");
+      console.log(`  Enabled: ${config.email.enabled}`);
+      console.log(`  To: ${config.email.to || "(not set)"}`);
+      console.log(`  SMTP User: ${config.email.smtp.user || "(not set)"}`);
+      console.log(`  SMTP Host: ${config.email.smtp.host}`);
+      console.log("\nMonitoring:");
+      console.log(`  Interval: ${config.monitoring.intervalMs} ms`);
+      console.log(`  Report on login: ${config.monitoring.reportOnLogin}`);
+      console.log(`  Report on suspicious: ${config.monitoring.reportOnSuspiciousActivity}`);
+      console.log("\nAlerts Thresholds:");
+      console.log(`  CPU: ${config.alerts.cpuThreshold}%`);
+      console.log(`  RAM: ${config.alerts.ramThreshold}%`);
+      console.log(`  Disk: ${config.alerts.diskThreshold}%`);
+      console.log("");
+    }
+  });
+
+program
+  .command("edit")
+  .description("Interactive settings editor")
+  .action(async () => {
+    await runEditWizard();
+  });
+
+program
+  .command("test")
+  .description("Test notifications")
+  .option("-w, --whatsapp", "Test WhatsApp notification")
+  .option("-e, --email", "Test email notification")
+  .action(async (options) => {
+    const testMessage = "[TEST] Test notification from System Monitor\n\nIf you received this, notifications are working!";
+
+    if (options.whatsapp) {
+      console.log("Testing WhatsApp...");
+      const sent = await notifyViaWhatsApp(testMessage);
+      console.log(sent ? "[OK] WhatsApp test sent!" : "[ERROR] WhatsApp test failed");
+    }
+
+    if (options.email) {
+      console.log("Testing Email...");
+      const valid = await verifyEmailConfig();
+      if (valid) {
+        const sent = await sendReportEmail(testMessage);
+        console.log(sent ? "[OK] Email test sent!" : "[ERROR] Email test failed");
+      } else {
+        console.log("[ERROR] Email configuration invalid");
+      }
+    }
+
+    if (!options.whatsapp && !options.email) {
+      console.log("Specify --whatsapp or --email to test");
+    }
+  });
+
+async function runSetupWizard(): Promise<void> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (q: string): Promise<string> =>
+    new Promise((resolve) => rl.question(q, resolve));
+
+  console.log("\n[========================================]");
+  console.log("║     System Monitor Setup Wizard        ║");
+  console.log("[========================================]\n");
+
+  console.log("[WARN] Starting fresh setup (this will overwrite existing config and session)\n");
+  
+  const { clearSessionDir, getDefaultConfig } = await import("./config/settings.ts");
+  clearSessionDir();
+  const config = getDefaultConfig();
+
+  console.log("WhatsApp Setup");
+  console.log("─────────────────");
+  const setupWhatsApp = await question("Enable WhatsApp notifications? (y/n): ");
+
+  if (setupWhatsApp.toLowerCase() === "y") {
+    config.whatsapp.enabled = true;
+    const phone = await question("Enter your phone number (with country code, e.g., 923001234567): ");
+    config.whatsapp.phoneNumber = phone.trim();
+
+    console.log("\nConnecting to WhatsApp...");
+    try {
+      await initWhatsApp();
+      console.log("[OK] WhatsApp connected!\n");
+    } catch (error) {
+      console.log("[WARN] WhatsApp setup failed. You can try again later with: monitor whatsapp\n");
+    }
+  }
+
+  console.log("\nEmail Setup");
+  console.log("─────────────────");
+  const setupEmail = await question("Enable email notifications? (y/n): ");
+
+  if (setupEmail.toLowerCase() === "y") {
+    config.email.enabled = true;
+    config.email.to = await question("Email address to receive notifications: ");
+    config.email.smtp.user = await question("SMTP username (your email): ");
+    config.email.smtp.pass = await question("SMTP password (app password for Gmail): ");
+
+    const customSmtp = await question("Use custom SMTP? (y/n, default is Gmail): ");
+    if (customSmtp.toLowerCase() === "y") {
+      config.email.smtp.host = await question("SMTP host: ");
+      config.email.smtp.port = parseInt(await question("SMTP port: "));
+      config.email.smtp.secure = (await question("Use SSL? (y/n): ")).toLowerCase() === "y";
+    }
+  }
+
+  console.log("\nMonitoring Settings");
+  console.log("─────────────────────────");
+  const interval = await question(`Report interval in milliseconds (default ${config.monitoring.intervalMs}): `);
+  if (interval) {
+    config.monitoring.intervalMs = parseInt(interval);
+  }
+
+  saveConfig(config);
+
+  console.log("\n[OK] Setup complete!");
+  console.log("\nTo start monitoring, run:");
+  console.log("  bun run start");
+  console.log("\nOr build a binary:");
+  console.log("  bun run build");
+  console.log("  ./dist/monitor start\n");
+
+  rl.close();
+}
+
+async function runEditWizard(): Promise<void> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (q: string): Promise<string> =>
+    new Promise((resolve) => rl.question(q, resolve));
+
+  const config = loadConfig();
+
+  console.log("\n[========================================]");
+  console.log("║       System Monitor Settings          ║");
+  console.log("[========================================]\n");
+
+  console.log("Select what to edit:\n");
+  console.log("  1. WhatsApp settings");
+  console.log("  2. Email settings");
+  console.log("  3. Monitoring settings (intervals)");
+  console.log("  4. Alert thresholds");
+  console.log("  5. Browser history time filter");
+  console.log("  6. Show current config");
+  console.log("  0. Exit\n");
+
+  const choice = await question("Enter choice (0-6): ");
+
+  switch (choice) {
+    case "1": {
+      console.log("\n--- WhatsApp Settings ---");
+      console.log(`Current: enabled=${config.whatsapp.enabled}, phone=${config.whatsapp.phoneNumber || "(not set)"}\n`);
+      
+      const enable = await question("Enable WhatsApp? (y/n, enter to skip): ");
+      if (enable.toLowerCase() === "y") config.whatsapp.enabled = true;
+      else if (enable.toLowerCase() === "n") config.whatsapp.enabled = false;
+
+      const phone = await question("Phone number (enter to skip): ");
+      if (phone.trim()) config.whatsapp.phoneNumber = phone.trim();
+
+      saveConfig(config);
+      console.log("\n[OK] WhatsApp settings updated!");
+      break;
+    }
+    case "2": {
+      console.log("\n--- Email Settings ---");
+      console.log(`Current: enabled=${config.email.enabled}, to=${config.email.to || "(not set)"}\n`);
+
+      const enable = await question("Enable Email? (y/n, enter to skip): ");
+      if (enable.toLowerCase() === "y") config.email.enabled = true;
+      else if (enable.toLowerCase() === "n") config.email.enabled = false;
+
+      const to = await question("Recipient email (enter to skip): ");
+      if (to.trim()) config.email.to = to.trim();
+
+      const user = await question("SMTP username (enter to skip): ");
+      if (user.trim()) config.email.smtp.user = user.trim();
+
+      const pass = await question("SMTP password (enter to skip): ");
+      if (pass.trim()) config.email.smtp.pass = pass.trim();
+
+      const host = await question("SMTP host (enter to skip): ");
+      if (host.trim()) config.email.smtp.host = host.trim();
+
+      const port = await question("SMTP port (enter to skip): ");
+      if (port.trim()) config.email.smtp.port = parseInt(port.trim());
+
+      saveConfig(config);
+      console.log("\n[OK] Email settings updated!");
+      break;
+    }
+    case "3": {
+      console.log("\n--- Monitoring Settings ---");
+      console.log(`Current interval: ${config.monitoring.intervalMs} ms (${config.monitoring.intervalMs / 60000} minutes)`);
+      console.log(`Report on login: ${config.monitoring.reportOnLogin}`);
+      console.log(`Report on suspicious: ${config.monitoring.reportOnSuspiciousActivity}\n`);
+
+      const interval = await question("Report interval in minutes (enter to skip): ");
+      if (interval.trim()) config.monitoring.intervalMs = parseInt(interval.trim()) * 60000;
+
+      const onLogin = await question("Report on login? (y/n, enter to skip): ");
+      if (onLogin.toLowerCase() === "y") config.monitoring.reportOnLogin = true;
+      else if (onLogin.toLowerCase() === "n") config.monitoring.reportOnLogin = false;
+
+      const onSuspicious = await question("Report on suspicious activity? (y/n, enter to skip): ");
+      if (onSuspicious.toLowerCase() === "y") config.monitoring.reportOnSuspiciousActivity = true;
+      else if (onSuspicious.toLowerCase() === "n") config.monitoring.reportOnSuspiciousActivity = false;
+
+      saveConfig(config);
+      console.log("\n[OK] Monitoring settings updated!");
+      break;
+    }
+    case "4": {
+      console.log("\n--- Alert Thresholds ---");
+      console.log(`Current: CPU=${config.alerts.cpuThreshold}%, RAM=${config.alerts.ramThreshold}%, Disk=${config.alerts.diskThreshold}%\n`);
+
+      const cpu = await question("CPU threshold % (enter to skip): ");
+      if (cpu.trim()) config.alerts.cpuThreshold = parseInt(cpu.trim());
+
+      const ram = await question("RAM threshold % (enter to skip): ");
+      if (ram.trim()) config.alerts.ramThreshold = parseInt(ram.trim());
+
+      const disk = await question("Disk threshold % (enter to skip): ");
+      if (disk.trim()) config.alerts.diskThreshold = parseInt(disk.trim());
+
+      saveConfig(config);
+      console.log("\n[OK] Alert thresholds updated!");
+      break;
+    }
+    case "5": {
+      const formatTime = (h: number, m: number) => `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+      console.log("\n--- Browser History Time Filter ---");
+      console.log("Only history entries within this time range will be included in reports.");
+      console.log(`Current: ${formatTime(config.browserHistory.startHour, config.browserHistory.startMinute)} - ${formatTime(config.browserHistory.endHour, config.browserHistory.endMinute)}\n`);
+
+      const startHour = await question("Start hour (0-23, enter to skip): ");
+      if (startHour.trim()) config.browserHistory.startHour = parseInt(startHour.trim());
+
+      const startMin = await question("Start minute (0-59, enter to skip): ");
+      if (startMin.trim()) config.browserHistory.startMinute = parseInt(startMin.trim());
+
+      const endHour = await question("End hour (0-23, enter to skip): ");
+      if (endHour.trim()) config.browserHistory.endHour = parseInt(endHour.trim());
+
+      const endMin = await question("End minute (0-59, enter to skip): ");
+      if (endMin.trim()) config.browserHistory.endMinute = parseInt(endMin.trim());
+
+      saveConfig(config);
+      console.log(`\n[OK] Browser history filter set to ${formatTime(config.browserHistory.startHour, config.browserHistory.startMinute)} - ${formatTime(config.browserHistory.endHour, config.browserHistory.endMinute)}`);
+      break;
+    }
+    case "6": {
+      console.log("\n--- Current Configuration ---\n");
+      console.log(JSON.stringify(config, null, 2));
+      break;
+    }
+    case "0":
+      console.log("Exiting...");
+      break;
+    default:
+      console.log("Invalid choice");
+  }
+
+  rl.close();
+}
+
+async function generateReport(): Promise<FullReport> {
+  const [system, sessions, recentLogins, failedLogins, activity, browserHistory, runningPrograms, openWindows] = await Promise.all([
+    getSystemStats(),
+    getCurrentSessions(),
+    getRecentLogins(),
+    getFailedLogins(),
+    getActivitySummary(),
+    getAllBrowserHistory(15),
+    getRunningPrograms(),
+    getOpenWindows(),
+  ]);
+
+  return {
+    system,
+    sessions,
+    recentLogins,
+    failedLogins,
+    activity,
+    browserHistory,
+    runningPrograms,
+    openWindows,
+    generatedAt: new Date(),
+  };
+}
+
+async function sendNotifications(message: string): Promise<void> {
+  const config = loadConfig();
+
+  if (config.whatsapp.enabled && config.whatsapp.phoneNumber) {
+    console.log("Sending to WhatsApp...");
+    await sendReportToWhatsApp(message);
+  }
+
+  if (config.email.enabled && config.email.to) {
+    console.log("Sending email...");
+    await sendReportEmail(message);
+  }
+}
+
+async function startMonitoring(intervalMs: number): Promise<void> {
+  const config = loadConfig();
+  console.log("\n[========================================]");
+  console.log("║      System Monitor Started            ║");
+  console.log("[========================================]\n");
+
+  console.log(`Report interval: ${intervalMs} ms`);
+  console.log(`WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);
+  console.log(`Email: ${config.email.enabled ? "enabled" : "disabled"}`);
+  console.log("\nPress Ctrl+C to stop\n");
+
+  await initializeBaseline();
+
+  if (config.whatsapp.enabled) {
+    try {
+      await initWhatsApp();
+
+      onWhatsAppMessage(async (message, from) => {
+        const cmd = message.trim();
+        const cmdLower = cmd.toLowerCase();
+
+        if (cmd === "generate-report") {
+          console.log(`[${new Date().toLocaleString()}] Received 'generate-report' command - sending immediate report...`);
+          const report = await generateReport();
+          const text = generateTextReport(report);
+          await sendReportToWhatsApp(text);
+        } else if (cmdLower === "report" || cmdLower === "status") {
+          const report = await generateReport();
+          const text =
+            cmdLower === "status"
+              ? generateQuickReport(
+                  report.system.cpu.usage,
+                  report.system.memory.usagePercent,
+                  report.system.disk.usagePercent,
+                  report.sessions.length,
+                  report.activity.suspiciousActivity
+                )
+              : generateTextReport(report);
+          await sendReportToWhatsApp(text);
+        } else if (cmdLower === "help") {
+          await notifyViaWhatsApp(
+            "Commands:\n- generate-report - Immediate full report\n- report - Full system report\n- status - Quick status\n- help - Show this message"
+          );
+        }
+      });
+    } catch (error) {
+      console.error("WhatsApp init failed:", error);
+    }
+  }
+
+  if (config.monitoring.reportOnLogin) {
+    watchLogins(async (event) => {
+      console.log(`[${new Date().toLocaleString()}] Login detected - generating full report...`);
+      const report = await generateReport();
+      const text = generateTextReport(report);
+      await sendNotifications(text);
+    });
+  }
+
+  watchScreenUnlock(async () => {
+    console.log(`[${new Date().toLocaleString()}] Screen unlock detected - generating full report...`);
+    const report = await generateReport();
+    const text = generateTextReport(report);
+    await sendNotifications(text);
+  });
+
+  const checkAndReport = async () => {
+    const report = await generateReport();
+
+    if (config.monitoring.reportOnSuspiciousActivity && report.activity.suspiciousActivity.length > 0) {
+      const alert = generateAlertMessage(
+        "suspicious",
+        report.activity.suspiciousActivity.join("\n")
+      );
+      await sendNotifications(alert);
+    }
+
+    const stats = report.system;
+    const alerts: string[] = [];
+
+    if (stats.cpu.usage > config.alerts.cpuThreshold) {
+      alerts.push(`CPU usage: ${stats.cpu.usage}%`);
+    }
+    if (stats.memory.usagePercent > config.alerts.ramThreshold) {
+      alerts.push(`RAM usage: ${stats.memory.usagePercent}%`);
+    }
+    if (stats.disk.usagePercent > config.alerts.diskThreshold) {
+      alerts.push(`Disk usage: ${stats.disk.usagePercent}%`);
+    }
+
+    if (alerts.length > 0) {
+      const alert = generateAlertMessage("threshold", alerts.join("\n"));
+      await sendNotifications(alert);
+    }
+  };
+
+  const sendScheduledReport = async () => {
+    console.log(`[${new Date().toLocaleString()}] Sending scheduled report...`);
+    const report = await generateReport();
+    const text = generateTextReport(report);
+    await sendNotifications(text);
+  };
+
+  await sendScheduledReport();
+
+  setInterval(sendScheduledReport, intervalMs);
+
+  setInterval(checkAndReport, 5 * 60 * 1000);
+
+  process.on("SIGINT", async () => {
+    console.log("\n\nShutting down...");
+    stopWatchingLogins();
+    stopWatchingScreenUnlock();
+    await destroyWhatsApp();
+    process.exit(0);
+  });
+
+  await new Promise(() => {});
+}
+
+function generateBar(percent: number): string {
+  const width = 20;
+  const filled = Math.round((percent / 100) * width);
+  return "█".repeat(filled) + "░".repeat(width - filled);
+}
+
+program.parse();
