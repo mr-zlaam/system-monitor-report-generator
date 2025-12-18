@@ -77,12 +77,23 @@ export async function checkSuspiciousActivity(): Promise<string[]> {
   try {
     const processes = await si.processes();
     const procs = processes.list || [];
+    const knownSafeProcesses = new Set([
+      "chromium", "chrome", "firefox", "electron", "node", "bun", "npm",
+      "code", "vscode", "cursor", "puppeteer", "playwright", "webpack",
+      "typescript", "eslint", "prettier", "jest", "vitest", "cargo", "rustc",
+      "python", "python3", "java", "javac", "docker", "containerd", "ffmpeg",
+      "handbrake", "blender", "gimp", "kdenlive", "obs", "steam", "proton",
+      "wine", "lutris", "discord", "slack", "teams", "zoom", "spotify",
+    ]);
     const cryptoMiners = procs.filter(
       (p) =>
         p.name.toLowerCase().includes("miner") ||
         p.name.toLowerCase().includes("xmr") ||
-        p.name.toLowerCase().includes("crypto") ||
-        (p.cpu > 80 && p.name.match(/^[a-z0-9]{8,}$/i))
+        p.name.toLowerCase().includes("monero") ||
+        p.name.toLowerCase().includes("ethminer") ||
+        p.name.toLowerCase().includes("cgminer") ||
+        p.name.toLowerCase().includes("bfgminer") ||
+        p.name.toLowerCase().includes("nicehash")
     );
     if (cryptoMiners.length > 0) {
       suspicious.push(
