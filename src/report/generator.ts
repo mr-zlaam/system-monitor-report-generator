@@ -1,6 +1,10 @@
 import type { SystemStats } from "../monitor/system.ts";
 import type { LoginEvent, CurrentSession } from "../monitor/login.ts";
 import type { ActivitySummary } from "../monitor/activity.ts";
+import type {
+  BrowserHistory,
+  RunningProgram,
+} from "../monitor/browser.ts";
 
 export interface FullReport {
   system: SystemStats;
@@ -8,6 +12,8 @@ export interface FullReport {
   recentLogins: LoginEvent[];
   failedLogins: LoginEvent[];
   activity: ActivitySummary;
+  browserHistory?: BrowserHistory;
+  runningPrograms?: RunningProgram[];
   generatedAt: Date;
 }
 
@@ -123,6 +129,61 @@ export function generateTextReport(report: FullReport): string {
       lines.push(`• ${device.name}`);
     }
     lines.push("");
+  }
+
+  if (report.runningPrograms && report.runningPrograms.length > 0) {
+    lines.push("───────────────────────────────────────");
+    lines.push("        🚀 RUNNING PROGRAMS            ");
+    lines.push("───────────────────────────────────────");
+    lines.push("");
+    for (const prog of report.runningPrograms.slice(0, 15)) {
+      lines.push(`• ${prog.name} (PID: ${prog.pid})`);
+      lines.push(`  CPU: ${prog.cpu}% | RAM: ${prog.mem}% | User: ${prog.user}`);
+    }
+    lines.push("");
+  }
+
+  if (report.browserHistory) {
+    const { thorium, chrome, edge } = report.browserHistory;
+
+    if (thorium.length > 0) {
+      lines.push("───────────────────────────────────────");
+      lines.push("        🌐 THORIUM HISTORY             ");
+      lines.push("───────────────────────────────────────");
+      lines.push("");
+      for (const entry of thorium.slice(0, 10)) {
+        lines.push(`• ${entry.title.substring(0, 50)}`);
+        lines.push(`  ${entry.url.substring(0, 60)}`);
+        lines.push(`  🕒 ${entry.visitTime}`);
+      }
+      lines.push("");
+    }
+
+    if (chrome.length > 0) {
+      lines.push("───────────────────────────────────────");
+      lines.push("        🌐 CHROME HISTORY              ");
+      lines.push("───────────────────────────────────────");
+      lines.push("");
+      for (const entry of chrome.slice(0, 10)) {
+        lines.push(`• ${entry.title.substring(0, 50)}`);
+        lines.push(`  ${entry.url.substring(0, 60)}`);
+        lines.push(`  🕒 ${entry.visitTime}`);
+      }
+      lines.push("");
+    }
+
+    if (edge.length > 0) {
+      lines.push("───────────────────────────────────────");
+      lines.push("        🌐 EDGE HISTORY                ");
+      lines.push("───────────────────────────────────────");
+      lines.push("");
+      for (const entry of edge.slice(0, 10)) {
+        lines.push(`• ${entry.title.substring(0, 50)}`);
+        lines.push(`  ${entry.url.substring(0, 60)}`);
+        lines.push(`  🕒 ${entry.visitTime}`);
+      }
+      lines.push("");
+    }
   }
 
   lines.push("═══════════════════════════════════════");

@@ -85,16 +85,22 @@ export async function checkSuspiciousActivity(): Promise<string[]> {
       "handbrake", "blender", "gimp", "kdenlive", "obs", "steam", "proton",
       "wine", "lutris", "discord", "slack", "teams", "zoom", "spotify",
     ]);
-    const cryptoMiners = procs.filter(
-      (p) =>
-        p.name.toLowerCase().includes("miner") ||
-        p.name.toLowerCase().includes("xmr") ||
-        p.name.toLowerCase().includes("monero") ||
-        p.name.toLowerCase().includes("ethminer") ||
-        p.name.toLowerCase().includes("cgminer") ||
-        p.name.toLowerCase().includes("bfgminer") ||
-        p.name.toLowerCase().includes("nicehash")
-    );
+const safeMiners = ["tracker-miner-fs", "tracker-miner-fs-3", "tracker-miner"];
+      const cryptoMiners = procs.filter(
+        (p) => {
+          const name = p.name.toLowerCase();
+          if (safeMiners.some((safe) => name.includes(safe))) return false;
+          return (
+            (name.includes("miner") && !name.includes("tracker")) ||
+            name.includes("xmr") ||
+            name.includes("monero") ||
+            name.includes("ethminer") ||
+            name.includes("cgminer") ||
+            name.includes("bfgminer") ||
+            name.includes("nicehash")
+          );
+        }
+      );
     if (cryptoMiners.length > 0) {
       suspicious.push(
         `Potential crypto miner processes: ${cryptoMiners.map((p) => p.name).join(", ")}`

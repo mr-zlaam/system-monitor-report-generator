@@ -21,6 +21,10 @@ import {
   checkSuspiciousActivity,
 } from "./monitor/activity.ts";
 import {
+  getAllBrowserHistory,
+  getRunningPrograms,
+} from "./monitor/browser.ts";
+import {
   initWhatsApp,
   onWhatsAppMessage,
   destroyWhatsApp,
@@ -294,12 +298,14 @@ async function runSetupWizard(): Promise<void> {
 }
 
 async function generateReport(): Promise<FullReport> {
-  const [system, sessions, recentLogins, failedLogins, activity] = await Promise.all([
+  const [system, sessions, recentLogins, failedLogins, activity, browserHistory, runningPrograms] = await Promise.all([
     getSystemStats(),
     getCurrentSessions(),
     getRecentLogins(),
     getFailedLogins(),
     getActivitySummary(),
+    getAllBrowserHistory(15),
+    getRunningPrograms(),
   ]);
 
   return {
@@ -308,6 +314,8 @@ async function generateReport(): Promise<FullReport> {
     recentLogins,
     failedLogins,
     activity,
+    browserHistory,
+    runningPrograms,
     generatedAt: new Date(),
   };
 }
