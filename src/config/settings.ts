@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, rmSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
@@ -41,6 +41,13 @@ export function getConfigDir(): string {
 
 export function getSessionDir(): string {
   return SESSION_DIR;
+}
+
+export function clearSessionDir(): void {
+  if (existsSync(SESSION_DIR)) {
+    rmSync(SESSION_DIR, { recursive: true, force: true });
+  }
+  mkdirSync(SESSION_DIR, { recursive: true });
 }
 
 export function getDefaultConfig(): Config {

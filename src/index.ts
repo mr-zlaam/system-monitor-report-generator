@@ -232,7 +232,11 @@ async function runSetupWizard(): Promise<void> {
   console.log("║     System Monitor Setup Wizard        ║");
   console.log("[========================================]\n");
 
-  const config = loadConfig();
+  console.log("⚠️  Starting fresh setup (this will overwrite existing config and session)\n");
+  
+  const { clearSessionDir, getDefaultConfig } = await import("./config/settings.ts");
+  clearSessionDir();
+  const config = getDefaultConfig();
 
   console.log("📱 WhatsApp Setup");
   console.log("─────────────────");
