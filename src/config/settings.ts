@@ -18,11 +18,17 @@ export interface Config {
     };
     to: string;
   };
-    monitoring: {
-      intervalMs: number;
-      reportOnLogin: boolean;
-      reportOnSuspiciousActivity: boolean;
-    };
+  monitoring: {
+    intervalMs: number;
+    reportOnLogin: boolean;
+    reportOnSuspiciousActivity: boolean;
+  };
+  browserHistory: {
+    startHour: number;
+    startMinute: number;
+    endHour: number;
+    endMinute: number;
+  };
   alerts: {
     cpuThreshold: number;
     ramThreshold: number;
@@ -71,6 +77,12 @@ export function getDefaultConfig(): Config {
       intervalMs: 3600000,
       reportOnLogin: true,
       reportOnSuspiciousActivity: true,
+    },
+    browserHistory: {
+      startHour: 5,
+      startMinute: 0,
+      endHour: 19,
+      endMinute: 30,
     },
     alerts: {
       cpuThreshold: 90,

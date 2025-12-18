@@ -3,9 +3,26 @@ import { promisify } from "util";
 import { existsSync, copyFileSync, unlinkSync } from "fs";
 import { homedir, tmpdir, platform } from "os";
 import path from "path";
+import { loadConfig } from "../config/settings";
 
 const execAsync = promisify(exec);
 const isWindows = platform() === "win32";
+
+function isWithinTimeRange(visitTime: string): boolean {
+  const config = loadConfig();
+  const { startHour, startMinute, endHour, endMinute } = config.browserHistory;
+  
+  const visitDate = new Date(visitTime);
+  if (isNaN(visitDate.getTime())) return false;
+  
+  const visitHour = visitDate.getHours();
+  const visitMin = visitDate.getMinutes();
+  const visitTimeNum = visitHour * 60 + visitMin;
+  const startTimeNum = startHour * 60 + startMinute;
+  const endTimeNum = endHour * 60 + endMinute;
+  
+  return visitTimeNum >= startTimeNum && visitTimeNum <= endTimeNum;
+}
 
 export interface BrowserHistoryEntry {
   url: string;
@@ -79,22 +96,25 @@ async function getBrowserHistory(
       stdout = result.stdout;
     }
 
-    const entries: BrowserHistoryEntry[] = [];
-    const lines = stdout.trim().split("\n").filter(Boolean);
+      const entries: BrowserHistoryEntry[] = [];
+      const lines = stdout.trim().split("\n").filter(Boolean);
 
-    for (const line of lines) {
-      const parts = line.split("|");
-      if (parts.length >= 3) {
-        entries.push({
-          url: parts[0] ?? "",
-          title: parts[1] ?? "No Title",
-          visitTime: parts[2] ?? "",
-          browser,
-        });
+      for (const line of lines) {
+        const parts = line.split("|");
+        if (parts.length >= 3) {
+          const visitTime = parts[2] ?? "";
+          if (isWithinTimeRange(visitTime)) {
+            entries.push({
+              url: parts[0] ?? "",
+              title: parts[1] ?? "No Title",
+              visitTime,
+              browser,
+            });
+          }
+        }
       }
-    }
 
-    return entries;
+      return entries;
   } catch {
     return [];
   } finally {

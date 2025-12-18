@@ -329,10 +329,11 @@ async function runEditWizard(): Promise<void> {
   console.log("  2. Email settings");
   console.log("  3. Monitoring settings (intervals)");
   console.log("  4. Alert thresholds");
-  console.log("  5. Show current config");
+  console.log("  5. Browser history time filter");
+  console.log("  6. Show current config");
   console.log("  0. Exit\n");
 
-  const choice = await question("Enter choice (0-5): ");
+  const choice = await question("Enter choice (0-6): ");
 
   switch (choice) {
     case "1": {
@@ -416,6 +417,28 @@ async function runEditWizard(): Promise<void> {
       break;
     }
     case "5": {
+      const formatTime = (h: number, m: number) => `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+      console.log("\n--- Browser History Time Filter ---");
+      console.log("Only history entries within this time range will be included in reports.");
+      console.log(`Current: ${formatTime(config.browserHistory.startHour, config.browserHistory.startMinute)} - ${formatTime(config.browserHistory.endHour, config.browserHistory.endMinute)}\n`);
+
+      const startHour = await question("Start hour (0-23, enter to skip): ");
+      if (startHour.trim()) config.browserHistory.startHour = parseInt(startHour.trim());
+
+      const startMin = await question("Start minute (0-59, enter to skip): ");
+      if (startMin.trim()) config.browserHistory.startMinute = parseInt(startMin.trim());
+
+      const endHour = await question("End hour (0-23, enter to skip): ");
+      if (endHour.trim()) config.browserHistory.endHour = parseInt(endHour.trim());
+
+      const endMin = await question("End minute (0-59, enter to skip): ");
+      if (endMin.trim()) config.browserHistory.endMinute = parseInt(endMin.trim());
+
+      saveConfig(config);
+      console.log(`\n[OK] Browser history filter set to ${formatTime(config.browserHistory.startHour, config.browserHistory.startMinute)} - ${formatTime(config.browserHistory.endHour, config.browserHistory.endMinute)}`);
+      break;
+    }
+    case "6": {
       console.log("\n--- Current Configuration ---\n");
       console.log(JSON.stringify(config, null, 2));
       break;
