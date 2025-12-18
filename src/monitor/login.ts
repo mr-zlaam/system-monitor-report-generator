@@ -179,3 +179,47 @@ export function stopWatchingLogins(): void {
     loginWatcher = null;
   }
 }
+
+let screenUnlockWatcher: ReturnType<typeof import("child_process").spawn> | null = null;
+
+export function watchScreenUnlock(callback: () => void): void {
+  try {
+    const { spawn } = require("child_process");
+    screenUnlockWatcher = spawn("dbus-monitor", [
+      "--session",
+      "type='signal',interface='org.gnome.ScreenSaver'"
+    ]);
+
+    let buffer = "";
+    screenUnlockWatcher?.stdout?.on("data", (data: Buffer) => {
+      buffer += data.toString();
+      if (buffer.includes("boolean false")) {
+        console.log("🔓 Screen unlocked detected via dbus");
+        callback();
+        buffer = "";
+      } else if (buffer.includes("boolean true")) {
+        console.log("🔒 Screen locked detected via dbus");
+        buffer = "";
+      }
+    });
+
+    screenUnlockWatcher?.stderr?.on("data", (data: Buffer) => {
+      console.error("dbus-monitor error:", data.toString());
+    });
+
+    screenUnlockWatcher?.on("error", (err: Error) => {
+      console.error("Failed to start dbus-monitor:", err.message);
+    });
+
+    console.log("👁️ Watching for screen unlock events...");
+  } catch (error) {
+    console.error("Failed to watch screen unlock:", error);
+  }
+}
+
+export function stopWatchingScreenUnlock(): void {
+  if (screenUnlockWatcher) {
+    screenUnlockWatcher.kill();
+    screenUnlockWatcher = null;
+  }
+}

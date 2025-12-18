@@ -14,6 +14,8 @@ import {
   getFailedLogins,
   watchLogins,
   stopWatchingLogins,
+  watchScreenUnlock,
+  stopWatchingScreenUnlock,
 } from "./monitor/login.ts";
 import {
   getActivitySummary,
@@ -355,12 +357,18 @@ async function startMonitoring(intervalMs: number): Promise<void> {
       await initWhatsApp();
 
       onWhatsAppMessage(async (message, from) => {
-        const cmd = message.toLowerCase().trim();
+        const cmd = message.trim();
+        const cmdLower = cmd.toLowerCase();
 
-        if (cmd === "report" || cmd === "status") {
+        if (cmd === "generate-report") {
+          console.log(`[${new Date().toLocaleString()}] Received 'generate-report' command - sending immediate report...`);
+          const report = await generateReport();
+          const text = generateTextReport(report);
+          await sendReportToWhatsApp(text);
+        } else if (cmdLower === "report" || cmdLower === "status") {
           const report = await generateReport();
           const text =
-            cmd === "status"
+            cmdLower === "status"
               ? generateQuickReport(
                   report.system.cpu.usage,
                   report.system.memory.usagePercent,
@@ -370,9 +378,9 @@ async function startMonitoring(intervalMs: number): Promise<void> {
                 )
               : generateTextReport(report);
           await sendReportToWhatsApp(text);
-        } else if (cmd === "help") {
+        } else if (cmdLower === "help") {
           await notifyViaWhatsApp(
-            "📋 Commands:\n• report - Full system report\n• status - Quick status\n• help - Show this message"
+            "📋 Commands:\n• generate-report - Immediate full report\n• report - Full system report\n• status - Quick status\n• help - Show this message"
           );
         }
       });
@@ -383,13 +391,19 @@ async function startMonitoring(intervalMs: number): Promise<void> {
 
   if (config.monitoring.reportOnLogin) {
     watchLogins(async (event) => {
-      const alert = generateAlertMessage(
-        "login",
-        `User: ${event.user}\nTerminal: ${event.terminal}\nFrom: ${event.host}\nTime: ${event.loginTime.toLocaleString()}`
-      );
-      await sendNotifications(alert);
+      console.log(`[${new Date().toLocaleString()}] Login detected - generating full report...`);
+      const report = await generateReport();
+      const text = generateTextReport(report);
+      await sendNotifications(text);
     });
   }
+
+  watchScreenUnlock(async () => {
+    console.log(`[${new Date().toLocaleString()}] Screen unlock detected - generating full report...`);
+    const report = await generateReport();
+    const text = generateTextReport(report);
+    await sendNotifications(text);
+  });
 
   const checkAndReport = async () => {
     const report = await generateReport();
@@ -437,6 +451,7 @@ async function startMonitoring(intervalMs: number): Promise<void> {
   process.on("SIGINT", async () => {
     console.log("\n\nShutting down...");
     stopWatchingLogins();
+    stopWatchingScreenUnlock();
     await destroyWhatsApp();
     process.exit(0);
   });
