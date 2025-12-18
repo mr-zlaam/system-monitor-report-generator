@@ -4,13 +4,13 @@
   "module": "src/index.ts",
   "type": "module",
   "private": true,
-    "scripts": {
-      "dev": "bun run src/index.ts",
-      "build": "bun build ./src/index.ts --compile --outfile ./dist/monitor",
-      "start": "bun run src/index.ts start",
-      "setup": "bun run src/index.ts setup",
-      "typecheck": "tsc --noEmit --watch"
-    },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun build ./src/index.ts --compile --outfile ./dist/monitor",
+    "start": "bun run src/index.ts start",
+    "setup": "bun run src/index.ts setup",
+    "typecheck": "tsc --noEmit --watch"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "@types/node": "^20.10.0",

@@ -19,31 +19,24 @@ export async function initWhatsApp(): Promise<Client> {
     return client;
   }
 
-  return new Promise((resolve, reject) => {
-    client = new Client({
-      authStrategy: new LocalAuth({
-        dataPath: getSessionDir(),
-      }),
-      webVersion: "2.3000.1018915033",
-      webVersionCache: {
-        type: "remote",
-        remotePath:
-          "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1018915033.html",
-      },
-      puppeteer: {
-        headless: true,
-        args: [
-          "--no-sandbox",
-          "--disable-setuid-sandbox",
-          "--disable-dev-shm-usage",
-          "--disable-accelerated-2d-canvas",
-          "--no-first-run",
-          "--no-zygote",
-          "--disable-gpu",
-          "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        ],
-      },
-    });
+    return new Promise((resolve, reject) => {
+      client = new Client({
+        authStrategy: new LocalAuth({
+          dataPath: getSessionDir(),
+        }),
+        puppeteer: {
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--no-first-run",
+            "--no-zygote",
+            "--disable-gpu",
+          ],
+        },
+      });
 
     client.on("qr", (qr) => {
       console.log("\n📱 Scan this QR code with WhatsApp:\n");
@@ -51,36 +44,9 @@ export async function initWhatsApp(): Promise<Client> {
       console.log("\nWaiting for QR scan...\n");
     });
 
-    client.on("ready", async () => {
-      console.log("✅ WhatsApp client is ready!");
-      
-          // Monkey-patch missing Store functions in recent WA Web versions
-          try {
-            await client!.pupPage?.evaluate(() => {
-              const patchStore = () => {
-                if ((window as any).Store) {
-                  if ((window as any).Store.ContactMethods && !(window as any).Store.ContactMethods.getIsMyContact) {
-                    (window as any).Store.ContactMethods.getIsMyContact = (id: any) => {
-                      const me = (window as any).Store.Contact.getMe();
-                      return id._serialized === (me.id ? me.id._serialized : me._serialized);
-                    };
-                  }
-                }
-              };
-              patchStore();
-              // Also try to patch whenever Store might be re-initialized
-              const interval = setInterval(() => {
-                if ((window as any).Store) {
-                  patchStore();
-                  clearInterval(interval);
-                }
-              }, 1000);
-            });
-          } catch (e) {
-            // Ignore patch errors
-          }
-
-      isReady = true;
+      client.on("ready", async () => {
+        console.log("✅ WhatsApp client is ready!");
+        isReady = true;
 
       const config = loadConfig();
       config.whatsapp.enabled = true;
@@ -104,12 +70,11 @@ export async function initWhatsApp(): Promise<Client> {
       isReady = false;
     });
 
-    client.on("message", async (message: Message) => {
-      if (onMessageCallback) {
-        const contact = await message.getContact();
-        onMessageCallback(message.body, contact.number);
-      }
-    });
+      client.on("message", async (message: Message) => {
+        if (onMessageCallback) {
+          onMessageCallback(message.body, message.from);
+        }
+      });
 
     client.initialize().catch(reject);
   });
@@ -144,41 +109,8 @@ export async function sendWhatsAppMessage(
           : `${targetNumber}@c.us`;
       }
 
-      // Retry logic for "Evaluation failed" errors
-      let lastError: any;
-      for (let i = 0; i < 3; i++) {
-        try {
-            // Re-apply patch before each send attempt just in case
-            await client.pupPage?.evaluate(() => {
-              if (
-                (window as any).Store &&
-                (window as any).Store.ContactMethods &&
-                !(window as any).Store.ContactMethods.getIsMyContact
-              ) {
-                (window as any).Store.ContactMethods.getIsMyContact = (id: any) => {
-                  const me = (window as any).Store.Contact.getMe();
-                  return (
-                    id._serialized === (me.id ? me.id._serialized : me._serialized)
-                  );
-                };
-              }
-            });
-
-          await client.sendMessage(chatId, message);
-          return true;
-        } catch (error: any) {
-          lastError = error;
-          if (error.message.includes("Evaluation failed") && i < 2) {
-            console.log(`Retrying WhatsApp message send (${i + 1}/3)...`);
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            continue;
-          }
-          break;
-        }
-      }
-
-      console.error("Failed to send WhatsApp message:", lastError);
-      return false;
+        await client.sendMessage(chatId, message);
+        return true;
     } catch (error) {
     console.error("Failed to send WhatsApp message (outer):", error);
     return false;
