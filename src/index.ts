@@ -59,9 +59,11 @@ program
 program
   .command("start")
   .description("Start monitoring daemon")
-  .option("-i, --interval <ms>", "Report interval in milliseconds", "3600000")
+  .option("-i, --interval <ms>", "Report interval in milliseconds (overrides config)")
   .action(async (options) => {
-    await startMonitoring(parseInt(options.interval));
+    const config = loadConfig();
+    const interval = options.interval ? parseInt(options.interval) : config.monitoring.intervalMs;
+    await startMonitoring(interval);
   });
 
 program
@@ -197,6 +199,13 @@ program
   });
 
 program
+  .command("edit")
+  .description("Interactive settings editor")
+  .action(async () => {
+    await runEditWizard();
+  });
+
+program
   .command("test")
   .description("Test notifications")
   .option("-w, --whatsapp", "Test WhatsApp notification")
@@ -296,6 +305,127 @@ async function runSetupWizard(): Promise<void> {
   console.log("\nOr build a binary:");
   console.log("  bun run build");
   console.log("  ./dist/monitor start\n");
+
+  rl.close();
+}
+
+async function runEditWizard(): Promise<void> {
+  const rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  const question = (q: string): Promise<string> =>
+    new Promise((resolve) => rl.question(q, resolve));
+
+  const config = loadConfig();
+
+  console.log("\n[========================================]");
+  console.log("║       System Monitor Settings          ║");
+  console.log("[========================================]\n");
+
+  console.log("Select what to edit:\n");
+  console.log("  1. WhatsApp settings");
+  console.log("  2. Email settings");
+  console.log("  3. Monitoring settings (intervals)");
+  console.log("  4. Alert thresholds");
+  console.log("  5. Show current config");
+  console.log("  0. Exit\n");
+
+  const choice = await question("Enter choice (0-5): ");
+
+  switch (choice) {
+    case "1": {
+      console.log("\n--- WhatsApp Settings ---");
+      console.log(`Current: enabled=${config.whatsapp.enabled}, phone=${config.whatsapp.phoneNumber || "(not set)"}\n`);
+      
+      const enable = await question("Enable WhatsApp? (y/n, enter to skip): ");
+      if (enable.toLowerCase() === "y") config.whatsapp.enabled = true;
+      else if (enable.toLowerCase() === "n") config.whatsapp.enabled = false;
+
+      const phone = await question("Phone number (enter to skip): ");
+      if (phone.trim()) config.whatsapp.phoneNumber = phone.trim();
+
+      saveConfig(config);
+      console.log("\n[OK] WhatsApp settings updated!");
+      break;
+    }
+    case "2": {
+      console.log("\n--- Email Settings ---");
+      console.log(`Current: enabled=${config.email.enabled}, to=${config.email.to || "(not set)"}\n`);
+
+      const enable = await question("Enable Email? (y/n, enter to skip): ");
+      if (enable.toLowerCase() === "y") config.email.enabled = true;
+      else if (enable.toLowerCase() === "n") config.email.enabled = false;
+
+      const to = await question("Recipient email (enter to skip): ");
+      if (to.trim()) config.email.to = to.trim();
+
+      const user = await question("SMTP username (enter to skip): ");
+      if (user.trim()) config.email.smtp.user = user.trim();
+
+      const pass = await question("SMTP password (enter to skip): ");
+      if (pass.trim()) config.email.smtp.pass = pass.trim();
+
+      const host = await question("SMTP host (enter to skip): ");
+      if (host.trim()) config.email.smtp.host = host.trim();
+
+      const port = await question("SMTP port (enter to skip): ");
+      if (port.trim()) config.email.smtp.port = parseInt(port.trim());
+
+      saveConfig(config);
+      console.log("\n[OK] Email settings updated!");
+      break;
+    }
+    case "3": {
+      console.log("\n--- Monitoring Settings ---");
+      console.log(`Current interval: ${config.monitoring.intervalMs} ms (${config.monitoring.intervalMs / 60000} minutes)`);
+      console.log(`Report on login: ${config.monitoring.reportOnLogin}`);
+      console.log(`Report on suspicious: ${config.monitoring.reportOnSuspiciousActivity}\n`);
+
+      const interval = await question("Report interval in minutes (enter to skip): ");
+      if (interval.trim()) config.monitoring.intervalMs = parseInt(interval.trim()) * 60000;
+
+      const onLogin = await question("Report on login? (y/n, enter to skip): ");
+      if (onLogin.toLowerCase() === "y") config.monitoring.reportOnLogin = true;
+      else if (onLogin.toLowerCase() === "n") config.monitoring.reportOnLogin = false;
+
+      const onSuspicious = await question("Report on suspicious activity? (y/n, enter to skip): ");
+      if (onSuspicious.toLowerCase() === "y") config.monitoring.reportOnSuspiciousActivity = true;
+      else if (onSuspicious.toLowerCase() === "n") config.monitoring.reportOnSuspiciousActivity = false;
+
+      saveConfig(config);
+      console.log("\n[OK] Monitoring settings updated!");
+      break;
+    }
+    case "4": {
+      console.log("\n--- Alert Thresholds ---");
+      console.log(`Current: CPU=${config.alerts.cpuThreshold}%, RAM=${config.alerts.ramThreshold}%, Disk=${config.alerts.diskThreshold}%\n`);
+
+      const cpu = await question("CPU threshold % (enter to skip): ");
+      if (cpu.trim()) config.alerts.cpuThreshold = parseInt(cpu.trim());
+
+      const ram = await question("RAM threshold % (enter to skip): ");
+      if (ram.trim()) config.alerts.ramThreshold = parseInt(ram.trim());
+
+      const disk = await question("Disk threshold % (enter to skip): ");
+      if (disk.trim()) config.alerts.diskThreshold = parseInt(disk.trim());
+
+      saveConfig(config);
+      console.log("\n[OK] Alert thresholds updated!");
+      break;
+    }
+    case "5": {
+      console.log("\n--- Current Configuration ---\n");
+      console.log(JSON.stringify(config, null, 2));
+      break;
+    }
+    case "0":
+      console.log("Exiting...");
+      break;
+    default:
+      console.log("Invalid choice");
+  }
 
   rl.close();
 }
