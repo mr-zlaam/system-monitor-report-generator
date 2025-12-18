@@ -62,15 +62,18 @@ REAL_HOME=$(eval echo "~${REAL_USER}")
 cat > /etc/systemd/system/${SERVICE_NAME}.service << EOF
 [Unit]
 Description=Denoo System Monitor
-After=network.target
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=${REAL_USER}
 ExecStart=${INSTALL_DIR}/${BINARY_NAME} start
 Restart=always
-RestartSec=10
+RestartSec=30
 Environment=HOME=${REAL_HOME}
+Environment=XDG_CONFIG_HOME=${REAL_HOME}/.config
+Environment=DISPLAY=:0
 WorkingDirectory=${REAL_HOME}
 
 [Install]

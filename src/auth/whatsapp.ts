@@ -20,10 +20,11 @@ export async function initWhatsApp(): Promise<Client> {
   }
 
     return new Promise((resolve, reject) => {
-      client = new Client({
-        authStrategy: new LocalAuth({
-          dataPath: getSessionDir(),
-        }),
+    client = new Client({
+      authStrategy: new LocalAuth({
+        clientId: "denoo-monitor",
+        dataPath: getSessionDir(),
+      }),
         puppeteer: {
           headless: true,
           args: [
