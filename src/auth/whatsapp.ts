@@ -24,10 +24,11 @@ export async function initWhatsApp(): Promise<Client> {
       authStrategy: new LocalAuth({
         dataPath: getSessionDir(),
       }),
+      webVersion: "2.3000.1015901391",
       webVersionCache: {
         type: "remote",
         remotePath:
-          "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html",
+          "https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.3000.1015901391.html",
       },
       puppeteer: {
         headless: true,
@@ -39,6 +40,7 @@ export async function initWhatsApp(): Promise<Client> {
           "--no-first-run",
           "--no-zygote",
           "--disable-gpu",
+          "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
         ],
       },
     });
@@ -49,8 +51,23 @@ export async function initWhatsApp(): Promise<Client> {
       console.log("\nWaiting for QR scan...\n");
     });
 
-    client.on("ready", () => {
+    client.on("ready", async () => {
       console.log("✅ WhatsApp client is ready!");
+      
+      // Monkey-patch missing getIsMyContact function in recent WA Web versions
+      try {
+        await client!.pupPage?.evaluate(() => {
+          if (window.Store && window.Store.ContactMethods && !window.Store.ContactMethods.getIsMyContact) {
+            window.Store.ContactMethods.getIsMyContact = (id: any) => {
+              const me = window.Store.Contact.getMe();
+              return id._serialized === me.id._serialized;
+            };
+          }
+        });
+      } catch (e) {
+        // Ignore patch errors, might not be needed or already exists
+      }
+
       isReady = true;
 
       const config = loadConfig();
@@ -101,31 +118,56 @@ export async function sendWhatsAppMessage(
     return false;
   }
 
-  try {
-    const chatId = phoneNumber.includes("@c.us")
-      ? phoneNumber
-      : `${phoneNumber.replace(/[^0-9]/g, "")}@c.us`;
+    try {
+      const config = loadConfig();
+      const targetNumber = phoneNumber.replace(/[^0-9]/g, "");
+      const myNumber = client.info.wid.user;
 
-    // Retry logic for "Evaluation failed" errors
-    let lastError: any;
-    for (let i = 0; i < 3; i++) {
-      try {
-        await client.sendMessage(chatId, message);
-        return true;
-      } catch (error: any) {
-        lastError = error;
-        if (error.message.includes("Evaluation failed") && i < 2) {
-          console.log(`Retrying WhatsApp message send (${i + 1}/3)...`);
-          await new Promise((resolve) => setTimeout(resolve, 2000));
-          continue;
-        }
-        break;
+      let chatId: string;
+      if (targetNumber === myNumber) {
+        chatId = client.info.wid._serialized;
+      } else {
+        chatId = phoneNumber.includes("@c.us")
+          ? phoneNumber
+          : `${targetNumber}@c.us`;
       }
-    }
 
-    console.error("Failed to send WhatsApp message:", lastError);
-    return false;
-  } catch (error) {
+      // Retry logic for "Evaluation failed" errors
+      let lastError: any;
+      for (let i = 0; i < 3; i++) {
+        try {
+          // Re-apply patch before each send attempt just in case
+          await client.pupPage?.evaluate(() => {
+            if (
+              window.Store &&
+              window.Store.ContactMethods &&
+              !window.Store.ContactMethods.getIsMyContact
+            ) {
+              window.Store.ContactMethods.getIsMyContact = (id: any) => {
+                const me = window.Store.Contact.getMe();
+                return (
+                  id._serialized === (me.id ? me.id._serialized : me._serialized)
+                );
+              };
+            }
+          });
+
+          await client.sendMessage(chatId, message);
+          return true;
+        } catch (error: any) {
+          lastError = error;
+          if (error.message.includes("Evaluation failed") && i < 2) {
+            console.log(`Retrying WhatsApp message send (${i + 1}/3)...`);
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            continue;
+          }
+          break;
+        }
+      }
+
+      console.error("Failed to send WhatsApp message:", lastError);
+      return false;
+    } catch (error) {
     console.error("Failed to send WhatsApp message (outer):", error);
     return false;
   }
