@@ -24,6 +24,7 @@ import {
   getAllBrowserHistory,
   getRunningPrograms,
 } from "./monitor/browser.ts";
+import { getOpenWindows } from "./monitor/windows.ts";
 import {
   initWhatsApp,
   onWhatsAppMessage,
@@ -298,7 +299,7 @@ async function runSetupWizard(): Promise<void> {
 }
 
 async function generateReport(): Promise<FullReport> {
-  const [system, sessions, recentLogins, failedLogins, activity, browserHistory, runningPrograms] = await Promise.all([
+  const [system, sessions, recentLogins, failedLogins, activity, browserHistory, runningPrograms, openWindows] = await Promise.all([
     getSystemStats(),
     getCurrentSessions(),
     getRecentLogins(),
@@ -306,6 +307,7 @@ async function generateReport(): Promise<FullReport> {
     getActivitySummary(),
     getAllBrowserHistory(15),
     getRunningPrograms(),
+    getOpenWindows(),
   ]);
 
   return {
@@ -316,6 +318,7 @@ async function generateReport(): Promise<FullReport> {
     activity,
     browserHistory,
     runningPrograms,
+    openWindows,
     generatedAt: new Date(),
   };
 }

@@ -5,6 +5,7 @@ import type {
   BrowserHistory,
   RunningProgram,
 } from "../monitor/browser.ts";
+import type { OpenWindow } from "../monitor/windows.ts";
 
 export interface FullReport {
   system: SystemStats;
@@ -14,6 +15,7 @@ export interface FullReport {
   activity: ActivitySummary;
   browserHistory?: BrowserHistory;
   runningPrograms?: RunningProgram[];
+  openWindows?: OpenWindow[];
   generatedAt: Date;
 }
 
@@ -127,6 +129,17 @@ export function generateTextReport(report: FullReport): string {
     lines.push("");
     for (const device of activity.usbDevices) {
       lines.push(`• ${device.name}`);
+    }
+    lines.push("");
+  }
+
+  if (report.openWindows && report.openWindows.length > 0) {
+    lines.push("───────────────────────────────────────");
+    lines.push("        🪟 OPEN WINDOWS                ");
+    lines.push("───────────────────────────────────────");
+    lines.push("");
+    for (const win of report.openWindows) {
+      lines.push(`• ${win.title}`);
     }
     lines.push("");
   }
