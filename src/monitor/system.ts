@@ -114,9 +114,9 @@ export async function getSystemStats(): Promise<SystemStats> {
     },
     memory: {
       total: formatBytes(mem.total),
-      used: formatBytes(mem.used),
-      free: formatBytes(mem.free),
-      usagePercent: Math.round((mem.used / mem.total) * 100 * 100) / 100,
+      used: formatBytes(mem.total - mem.available),
+      free: formatBytes(mem.available),
+      usagePercent: Math.round(((mem.total - mem.available) / mem.total) * 100 * 100) / 100,
     },
     disk: {
       total: formatBytes(totalDisk),
@@ -191,7 +191,7 @@ export async function getQuickStats(): Promise<{
 
   return {
     cpu: Math.round(cpuLoad.currentLoad),
-    ram: Math.round((mem.used / mem.total) * 100),
+    ram: Math.round(((mem.total - mem.available) / mem.total) * 100),
     disk: Math.round((usedDisk / totalDisk) * 100),
   };
 }
