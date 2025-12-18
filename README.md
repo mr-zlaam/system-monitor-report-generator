@@ -20,6 +20,8 @@ irm https://raw.githubusercontent.com/mr-zlaam/system-monitor-report-generator/m
 
 ### 1. Setup (Required First)
 
+#
+
 ```bash
 denoo setup
 ```
@@ -44,17 +46,17 @@ sudo systemctl start denoo
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `denoo setup` | Interactive setup wizard |
-| `denoo start` | Start monitoring daemon |
-| `denoo status` | Quick system status |
-| `denoo report` | Generate and send report now |
-| `denoo config` | View/edit configuration |
-| `denoo edit` | Interactive settings editor |
-| `denoo test -w` | Test WhatsApp notification |
-| `denoo test -e` | Test email notification |
-| `denoo whatsapp` | WhatsApp authentication |
+| Command          | Description                  |
+| ---------------- | ---------------------------- |
+| `denoo setup`    | Interactive setup wizard     |
+| `denoo start`    | Start monitoring daemon      |
+| `denoo status`   | Quick system status          |
+| `denoo report`   | Generate and send report now |
+| `denoo config`   | View/edit configuration      |
+| `denoo edit`     | Interactive settings editor  |
+| `denoo test -w`  | Test WhatsApp notification   |
+| `denoo test -e`  | Test email notification      |
+| `denoo whatsapp` | WhatsApp authentication      |
 
 ## Features
 
