@@ -86,3 +86,4 @@ Write-Host "  $BINARY_NAME status    - Quick system status"
 Write-Host "  $BINARY_NAME report    - Generate report now"
 Write-Host "  $BINARY_NAME config    - View/edit configuration"
 Write-Host ""
+# good luck
