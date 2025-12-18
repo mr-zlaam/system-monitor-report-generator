@@ -1,12 +1,21 @@
 #!/usr/bin/env bun
 import { Command } from "commander";
 import { createInterface } from "readline";
+import { existsSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
 import {
   loadConfig,
   saveConfig,
   getDefaultConfig,
   type Config,
 } from "./config/settings.ts";
+
+const CONFIG_FILE = join(homedir(), ".config", "system-monitor", "config.json");
+
+function isSetupComplete(): boolean {
+  return existsSync(CONFIG_FILE);
+}
 import { getSystemStats, getQuickStats } from "./monitor/system.ts";
 import {
   getCurrentSessions,
@@ -61,6 +70,12 @@ program
   .description("Start monitoring daemon")
   .option("-i, --interval <ms>", "Report interval in milliseconds (overrides config)")
   .action(async (options) => {
+    if (!isSetupComplete()) {
+      console.log("\n[ERROR] Setup not complete!");
+      console.log("\nPlease run the setup wizard first:");
+      console.log("  denoo setup\n");
+      process.exit(1);
+    }
     const config = loadConfig();
     const interval = options.interval ? parseInt(options.interval) : config.monitoring.intervalMs;
     await startMonitoring(interval);
@@ -301,10 +316,7 @@ async function runSetupWizard(): Promise<void> {
 
   console.log("\n[OK] Setup complete!");
   console.log("\nTo start monitoring, run:");
-  console.log("  bun run start");
-  console.log("\nOr build a binary:");
-  console.log("  bun run build");
-  console.log("  ./dist/monitor start\n");
+  console.log("  denoo start\n");
 
   rl.close();
 }

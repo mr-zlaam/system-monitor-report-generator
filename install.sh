@@ -2,63 +2,105 @@
 
 set -e
 
+REPO="mr-zlaam/system-monitor-report-generator"
 INSTALL_DIR="/usr/local/bin"
-BINARY_NAME="denoo"
-SOURCE_BINARY="./dist/monitor"
 SERVICE_NAME="denoo"
-SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+BINARY_NAME="denoo"
 
-echo "Denoo System Monitor Installer"
-echo "=============================="
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
 
-if [ ! -f "$SOURCE_BINARY" ]; then
-    echo "Binary not found. Building..."
-    bun run compile
-fi
+print_status() { echo -e "${GREEN}[OK]${NC} $1"; }
+print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+print_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
-if [ ! -f "$SOURCE_BINARY" ]; then
-    echo "Error: Failed to build binary"
+if [ "$EUID" -ne 0 ]; then
+    print_error "Please run as root (use sudo)"
     exit 1
 fi
 
-echo "Installing binary to $INSTALL_DIR..."
-sudo cp "$SOURCE_BINARY" "$INSTALL_DIR/$BINARY_NAME"
-sudo chmod +x "$INSTALL_DIR/$BINARY_NAME"
+echo ""
+echo "╔════════════════════════════════════════╗"
+echo "║     Denoo System Monitor Installer     ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
 
+LATEST_RELEASE=$(curl -s "https://api.github.com/repos/${REPO}/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
+if [ -z "$LATEST_RELEASE" ]; then
+    print_error "Could not fetch latest release"
+    exit 1
+fi
+
+print_status "Latest version: ${LATEST_RELEASE}"
+
+DOWNLOAD_URL="https://github.com/${REPO}/releases/download/${LATEST_RELEASE}/denoo-linux-x64.tar.gz"
+
+echo "Downloading ${BINARY_NAME}..."
+TMP_DIR=$(mktemp -d)
+curl -sL "$DOWNLOAD_URL" -o "${TMP_DIR}/denoo.tar.gz"
+
+echo "Extracting..."
+tar -xzf "${TMP_DIR}/denoo.tar.gz" -C "${TMP_DIR}"
+
+echo "Installing to ${INSTALL_DIR}..."
+mv "${TMP_DIR}/denoo" "${INSTALL_DIR}/${BINARY_NAME}"
+chmod +x "${INSTALL_DIR}/${BINARY_NAME}"
+
+rm -rf "${TMP_DIR}"
+
+print_status "Binary installed to ${INSTALL_DIR}/${BINARY_NAME}"
+
+echo ""
 echo "Creating systemd service..."
-sudo tee "$SERVICE_FILE" > /dev/null <<EOF
+
+REAL_USER="${SUDO_USER:-$USER}"
+REAL_HOME=$(eval echo "~${REAL_USER}")
+
+cat > /etc/systemd/system/${SERVICE_NAME}.service << EOF
 [Unit]
 Description=Denoo System Monitor
 After=network.target
 
 [Service]
 Type=simple
-ExecStart=$INSTALL_DIR/$BINARY_NAME start
+User=${REAL_USER}
+ExecStart=${INSTALL_DIR}/${BINARY_NAME} start
 Restart=always
 RestartSec=10
-User=$USER
+Environment=HOME=${REAL_HOME}
+WorkingDirectory=${REAL_HOME}
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-echo "Enabling and starting service..."
-sudo systemctl daemon-reload
-sudo systemctl enable "$SERVICE_NAME"
-sudo systemctl start "$SERVICE_NAME"
+systemctl daemon-reload
+print_status "Systemd service created"
 
 echo ""
-echo "Installation complete!"
+echo "╔════════════════════════════════════════╗"
+echo "║         Installation Complete!         ║"
+echo "╚════════════════════════════════════════╝"
+echo ""
+echo "Next steps:"
+echo ""
+echo "  1. Run setup wizard:"
+echo "     ${BINARY_NAME} setup"
+echo ""
+echo "  2. After setup, start as a service:"
+echo "     sudo systemctl enable ${SERVICE_NAME}"
+echo "     sudo systemctl start ${SERVICE_NAME}"
+echo ""
+echo "  Or run directly:"
+echo "     ${BINARY_NAME} start"
 echo ""
 echo "Commands:"
-echo "  denoo              - Run manually"
-echo "  denoo status       - Check service status"
-echo "  denoo stop         - Stop service"
-echo "  denoo start        - Start service"
-echo "  denoo logs         - View logs"
+echo "  ${BINARY_NAME} setup     - Configure notifications"
+echo "  ${BINARY_NAME} start     - Start monitoring"
+echo "  ${BINARY_NAME} status    - Quick system status"
+echo "  ${BINARY_NAME} report    - Generate report now"
+echo "  ${BINARY_NAME} config    - View/edit configuration"
 echo ""
-echo "Service commands:"
-echo "  sudo systemctl status denoo   - Check status"
-echo "  sudo systemctl stop denoo     - Stop service"
-echo "  sudo systemctl start denoo    - Start service"
-echo "  sudo systemctl restart denoo  - Restart service"
