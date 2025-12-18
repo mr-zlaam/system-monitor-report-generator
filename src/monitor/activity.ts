@@ -1,8 +1,10 @@
 import { exec } from "child_process";
 import { promisify } from "util";
+import { platform } from "os";
 import si from "systeminformation";
 
 const execAsync = promisify(exec);
+const isWindows = platform() === "win32";
 
 export interface USBDevice {
   name: string;
@@ -24,20 +26,30 @@ let knownUSBDevices: Set<string> = new Set();
 
 export async function getUSBDevices(): Promise<USBDevice[]> {
   try {
-    const { stdout } = await execAsync("lsusb 2>/dev/null || true");
-    const lines = stdout.trim().split("\n").filter(Boolean);
+    if (isWindows) {
+      const usbData = await si.usb();
+      return usbData.map((device) => ({
+        id: device.id?.toString() || "unknown",
+        name: device.name || "Unknown Device",
+        vendor: device.vendor || "unknown",
+        type: device.type || "usb",
+      }));
+    } else {
+      const { stdout } = await execAsync("lsusb 2>/dev/null || true");
+      const lines = stdout.trim().split("\n").filter(Boolean);
 
-    return lines.map((line) => {
-      const match = line.match(
-        /Bus\s+\d+\s+Device\s+\d+:\s+ID\s+([\w:]+)\s+(.+)/
-      );
-      return {
-        id: match?.[1] || "unknown",
-        name: match?.[2] || line,
-        vendor: match?.[2]?.split(" ")[0] || "unknown",
-        type: "usb",
-      };
-    });
+      return lines.map((line) => {
+        const match = line.match(
+          /Bus\s+\d+\s+Device\s+\d+:\s+ID\s+([\w:]+)\s+(.+)/
+        );
+        return {
+          id: match?.[1] || "unknown",
+          name: match?.[2] || line,
+          vendor: match?.[2]?.split(" ")[0] || "unknown",
+          type: "usb",
+        };
+      });
+    }
   } catch {
     return [];
   }
@@ -45,8 +57,16 @@ export async function getUSBDevices(): Promise<USBDevice[]> {
 
 export async function getActiveUsers(): Promise<string[]> {
   try {
-    const { stdout } = await execAsync("users");
-    return [...new Set(stdout.trim().split(/\s+/).filter(Boolean))];
+    if (isWindows) {
+      const { stdout } = await execAsync(
+        `powershell -Command "(Get-CimInstance -ClassName Win32_ComputerSystem).UserName"`
+      );
+      const user = stdout.trim();
+      return user ? [user.split("\\").pop() || user] : [];
+    } else {
+      const { stdout } = await execAsync("users");
+      return [...new Set(stdout.trim().split(/\s+/).filter(Boolean))];
+    }
   } catch {
     return [];
   }
@@ -55,24 +75,46 @@ export async function getActiveUsers(): Promise<string[]> {
 export async function checkSuspiciousActivity(): Promise<string[]> {
   const suspicious: string[] = [];
 
-  try {
-    const { stdout: rootProcs } = await execAsync(
-      "ps aux | grep -E '^root.*pts' | grep -v grep || true"
-    );
-    if (rootProcs.trim()) {
-      suspicious.push("Root processes running on pseudo-terminals detected");
-    }
-  } catch {}
+  if (isWindows) {
+    try {
+      const { stdout: rdpConns } = await execAsync(
+        `powershell -Command "(Get-NetTCPConnection -LocalPort 3389 -State Established -ErrorAction SilentlyContinue).Count"`
+      );
+      const rdpCount = parseInt(rdpConns.trim()) || 0;
+      if (rdpCount > 0) {
+        suspicious.push(`${rdpCount} active RDP connections detected`);
+      }
+    } catch {}
 
-  try {
-    const { stdout: sshConns } = await execAsync(
-      "ss -tn state established '( dport = :22 or sport = :22 )' 2>/dev/null || true"
-    );
-    const sshLines = sshConns.trim().split("\n").filter(Boolean);
-    if (sshLines.length > 1) {
-      suspicious.push(`${sshLines.length - 1} active SSH connections detected`);
-    }
-  } catch {}
+    try {
+      const { stdout: sshConns } = await execAsync(
+        `powershell -Command "(Get-NetTCPConnection -LocalPort 22 -State Established -ErrorAction SilentlyContinue).Count"`
+      );
+      const sshCount = parseInt(sshConns.trim()) || 0;
+      if (sshCount > 0) {
+        suspicious.push(`${sshCount} active SSH connections detected`);
+      }
+    } catch {}
+  } else {
+    try {
+      const { stdout: rootProcs } = await execAsync(
+        "ps aux | grep -E '^root.*pts' | grep -v grep || true"
+      );
+      if (rootProcs.trim()) {
+        suspicious.push("Root processes running on pseudo-terminals detected");
+      }
+    } catch {}
+
+    try {
+      const { stdout: sshConns } = await execAsync(
+        "ss -tn state established '( dport = :22 or sport = :22 )' 2>/dev/null || true"
+      );
+      const sshLines = sshConns.trim().split("\n").filter(Boolean);
+      if (sshLines.length > 1) {
+        suspicious.push(`${sshLines.length - 1} active SSH connections detected`);
+      }
+    } catch {}
+  }
 
   try {
     const processes = await si.processes();
@@ -85,22 +127,22 @@ export async function checkSuspiciousActivity(): Promise<string[]> {
       "handbrake", "blender", "gimp", "kdenlive", "obs", "steam", "proton",
       "wine", "lutris", "discord", "slack", "teams", "zoom", "spotify",
     ]);
-const safeMiners = ["tracker-miner-fs", "tracker-miner-fs-3", "tracker-miner"];
-      const cryptoMiners = procs.filter(
-        (p) => {
-          const name = p.name.toLowerCase();
-          if (safeMiners.some((safe) => name.includes(safe))) return false;
-          return (
-            (name.includes("miner") && !name.includes("tracker")) ||
-            name.includes("xmr") ||
-            name.includes("monero") ||
-            name.includes("ethminer") ||
-            name.includes("cgminer") ||
-            name.includes("bfgminer") ||
-            name.includes("nicehash")
-          );
-        }
-      );
+    const safeMiners = ["tracker-miner-fs", "tracker-miner-fs-3", "tracker-miner", "SearchIndexer"];
+    const cryptoMiners = procs.filter(
+      (p) => {
+        const name = p.name.toLowerCase();
+        if (safeMiners.some((safe) => name.includes(safe.toLowerCase()))) return false;
+        return (
+          (name.includes("miner") && !name.includes("tracker") && !name.includes("searchindexer")) ||
+          name.includes("xmr") ||
+          name.includes("monero") ||
+          name.includes("ethminer") ||
+          name.includes("cgminer") ||
+          name.includes("bfgminer") ||
+          name.includes("nicehash")
+        );
+      }
+    );
     if (cryptoMiners.length > 0) {
       suspicious.push(
         `Potential crypto miner processes: ${cryptoMiners.map((p) => p.name).join(", ")}`
@@ -108,14 +150,25 @@ const safeMiners = ["tracker-miner-fs", "tracker-miner-fs-3", "tracker-miner"];
     }
   } catch {}
 
-  try {
-    const { stdout: reverseShells } = await execAsync(
-      "ss -tnp 2>/dev/null | grep -E 'ESTAB.*(bash|sh|nc|ncat|netcat)' || true"
-    );
-    if (reverseShells.trim()) {
-      suspicious.push("Potential reverse shell connections detected");
-    }
-  } catch {}
+  if (!isWindows) {
+    try {
+      const { stdout: reverseShells } = await execAsync(
+        "ss -tnp 2>/dev/null | grep -E 'ESTAB.*(bash|sh|nc|ncat|netcat)' || true"
+      );
+      if (reverseShells.trim()) {
+        suspicious.push("Potential reverse shell connections detected");
+      }
+    } catch {}
+  } else {
+    try {
+      const { stdout: suspiciousProcs } = await execAsync(
+        `powershell -Command "Get-Process | Where-Object { $_.ProcessName -match 'nc|ncat|netcat|powershell_ise' -and $_.MainWindowTitle -eq '' } | Select-Object -ExpandProperty ProcessName"`
+      );
+      if (suspiciousProcs.trim()) {
+        suspicious.push(`Potentially suspicious hidden processes: ${suspiciousProcs.trim().split('\n').join(', ')}`);
+      }
+    } catch {}
+  }
 
   return suspicious;
 }
