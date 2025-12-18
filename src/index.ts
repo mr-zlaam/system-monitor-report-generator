@@ -232,7 +232,7 @@ async function runSetupWizard(): Promise<void> {
   console.log("║     System Monitor Setup Wizard        ║");
   console.log("╚════════════════════════════════════════╝\n");
 
-  const config = loadConfig();
+  const config = getDefaultConfig();
 
   console.log("📱 WhatsApp Setup");
   console.log("─────────────────");
@@ -326,7 +326,7 @@ async function startMonitoring(intervalMs: number): Promise<void> {
   const config = loadConfig();
   console.log("\n╔════════════════════════════════════════╗");
   console.log("║      System Monitor Started            ║");
-  ╚════════════════════════════════════════╝\n");
+  console.log("╚════════════════════════════════════════╝\n");
 
   console.log(`📊 Report interval: ${intervalMs} ms`);
   console.log(`📱 WhatsApp: ${config.whatsapp.enabled ? "enabled" : "disabled"}`);
