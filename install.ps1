@@ -27,21 +27,17 @@ try {
 
 Write-Status "Latest version: $LATEST_RELEASE"
 
-$DOWNLOAD_URL = "https://github.com/$REPO/releases/download/$LATEST_RELEASE/denoo-windows-x64.zip"
+$DOWNLOAD_URL = "https://github.com/$REPO/releases/download/$LATEST_RELEASE/denoo.exe"
 
 if (!(Test-Path $INSTALL_DIR)) {
     New-Item -ItemType Directory -Path $INSTALL_DIR -Force | Out-Null
 }
 
 Write-Host "Downloading $BINARY_NAME..."
-$TMP_FILE = "$env:TEMP\denoo.zip"
-Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile $TMP_FILE
+$DEST_FILE = "$INSTALL_DIR\$BINARY_NAME.exe"
+Invoke-WebRequest -Uri $DOWNLOAD_URL -OutFile $DEST_FILE
 
-Write-Host "Extracting..."
-Expand-Archive -Path $TMP_FILE -DestinationPath $INSTALL_DIR -Force
-Remove-Item $TMP_FILE -Force
-
-Write-Status "Binary installed to $INSTALL_DIR\$BINARY_NAME.exe"
+Write-Status "Binary installed to $DEST_FILE"
 
 $currentPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($currentPath -notlike "*$INSTALL_DIR*") {
